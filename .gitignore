@@ -1,0 +1,17 @@
+# 로컬 설정·건강 데이터는 절대 저장소에 올리지 않음
+config.yaml
+config.local.yaml
+*.zip
+vault/
+Vault/
+*_vault/
+대시보드.html
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+.venv/
+.pytest_cache/

@@ -1,0 +1,8 @@
+description = "가족 건강 시각화 대시보드(HTML) 갱신, 카톡 공유용 요약 PNG 생성"
+prompt = """
+@{.claude/skills/대시보드/SKILL.md}
+
+위 지침을 따라 처리하라.
+
+사용자 요청: {{args}}
+"""

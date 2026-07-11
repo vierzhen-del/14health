@@ -1,0 +1,38 @@
+# 14health — Gemini CLI 작업 규칙
+
+가족 건강기록을 옵시디안(Obsidian) vault로 관리하는 로컬 전용 도구.
+CLI는 `pip install -e .` 후 `14health` 명령으로 사용한다.
+
+## 개인정보 보호 규칙 (최우선 — 반드시 준수)
+
+1. **건강 데이터는 vault에만**: 수치(혈압·혈당·체중 등)·증상·처방약·진단·분석
+   본문은 로컬 옵시디안 vault의 노트에만 기록한다. git 커밋, 웹 검색 쿼리,
+   외부 API 호출, 노션 본문 어디에도 포함하지 않는다.
+2. **실명 금지**: 개인은 관계호칭(나/부인/아들/딸/어머니 …)으로만 기록한다.
+   입력 자료의 실명은 저장 전에 관계호칭으로 치환한다
+   (`14health alias add <실명> <관계호칭>` 등록 시 자동 치환).
+3. **vault 경로 확인**: vault가 이 저장소 밖인지 확인 (`14health config show`).
+4. 의학 정보 안내 시 항상 "참고 정보이며 진단이 아님"을 고지한다.
+
+※ Gemini로 이미지를 분석하면 이미지가 Google 서버로 전송된다. 민감한 결과지는
+사용자에게 이 점을 먼저 알리고 진행 여부를 확인한다.
+
+## 커스텀 명령
+
+`.gemini/commands/` 에 정의됨: `/건강입력` `/검진분석` `/위험분석` `/대시보드` `/vault관리`
+
+## 주요 CLI
+
+```bash
+14health init --vault <경로>                 # vault 생성·경로 등록
+14health member add <관계호칭> --birth 1980 --sex M
+14health checkup add <관계호칭> --year 2025 --field 혈압=120/80 --field 체중=72
+14health visit add <관계호칭> --date 2026-07-01 --hospital 내과 --symptom 기침
+14health history add --relation 부 --disease 고혈압
+14health note write <관계호칭> --json <파일>   # 이미지 판독 결과 구조화 저장
+14health analyze <관계호칭>                   # 위험도 분석 리포트
+14health dashboard                           # 시각화 HTML
+14health share <관계호칭>                     # 카톡 첨부용 PNG
+14health export / import <zip> --vault <경로> # 기기 이동
+14health log [--sync-notion]                 # 이력 조회·노션 동기화(마스킹)
+```

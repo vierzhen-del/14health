@@ -1,0 +1,199 @@
+# 생애주기별 권장 검진 (국가건강검진·국가암검진 기준 참고)
+# sex: all | M | F
+# family_history: 해당 질환 가족력이 있으면 시작연령/주기 강화
+checkups:
+  - name: 영유아 건강검진
+    sex: all
+    age_min: 0
+    age_max: 6
+    interval_years: 1
+    detail: 생후 14일~71개월 시기별 총 8회 + 구강검진 3회
+  - name: 학생 건강검진
+    sex: all
+    age_min: 7
+    age_max: 18
+    interval_years: 3
+    detail: 초1·초4·중1·고1 (시력·청력·척추·구강 포함)
+  - name: 일반건강검진
+    sex: all
+    age_min: 20
+    interval_years: 2
+    detail: 혈압·혈액(혈당·지질·간·신장)·소변·흉부X선 (국가검진, 출생연도 홀짝)
+  - name: 구강검진(치과 스케일링)
+    sex: all
+    age_min: 19
+    interval_years: 1
+    detail: 연 1회 스케일링 건강보험 적용
+  - name: 이상지질혈증 혈액검사
+    sex: M
+    age_min: 24
+    interval_years: 4
+    detail: 국가검진 내 포함 (남 24세+)
+    family_history:
+      diseases: [심근경색, 심장질환, 뇌졸중]
+      interval_years: 2
+  - name: 이상지질혈증 혈액검사
+    sex: F
+    age_min: 40
+    interval_years: 4
+    detail: 국가검진 내 포함 (여 40세+)
+    family_history:
+      diseases: [심근경색, 심장질환, 뇌졸중]
+      interval_years: 2
+  - name: B형간염 항원·항체 검사
+    sex: all
+    age_min: 40
+    age_max: 40
+    interval_years: 1
+    detail: 만 40세 국가검진 1회 (항체 없으면 예방접종)
+  - name: 위내시경(위암검진)
+    sex: all
+    age_min: 40
+    interval_years: 2
+    detail: 국가암검진 — 40세+ 2년마다
+    family_history:
+      diseases: [위암]
+      age_min: 35
+      interval_years: 1
+      note: 위암 가족력 — 시작연령 단축·매년 권장(주치의 상담)
+  - name: 대장암검진(분변잠혈검사)
+    sex: all
+    age_min: 50
+    interval_years: 1
+    detail: 국가암검진 — 50세+ 매년, 양성 시 대장내시경
+    family_history:
+      diseases: [대장암]
+      age_min: 40
+      note: 대장암 가족력 — 40~45세부터 대장내시경 직접 시행 권장
+  - name: 대장내시경
+    sex: all
+    age_min: 50
+    interval_years: 5
+    detail: 이상 없을 시 5년 주기 (용종 발견 시 단축)
+    family_history:
+      diseases: [대장암]
+      age_min: 40
+      interval_years: 3
+  - name: 간암검진(간초음파+AFP)
+    sex: all
+    age_min: 40
+    interval_years: 1
+    high_risk_only: true
+    detail: 간경변·B/C형 간염 보유자 등 고위험군 — 6개월마다
+    family_history:
+      diseases: [간암, 간질환]
+      note: 간암 가족력 — 고위험군 여부 확인 권장
+  - name: 유방촬영(유방암검진)
+    sex: F
+    age_min: 40
+    interval_years: 2
+    detail: 국가암검진 — 여 40세+ 2년마다
+    family_history:
+      diseases: [유방암]
+      age_min: 35
+      interval_years: 1
+  - name: 자궁경부세포검사
+    sex: F
+    age_min: 20
+    interval_years: 2
+    detail: 국가암검진 — 여 20세+ 2년마다
+  - name: 폐암 저선량 흉부CT
+    sex: all
+    age_min: 54
+    age_max: 74
+    interval_years: 2
+    high_risk_only: true
+    detail: 30갑년 이상 흡연 고위험군
+  - name: 골밀도검사
+    sex: F
+    age_min: 54
+    interval_years: 6
+    detail: 국가검진 — 여 54·60·66세
+  - name: 골다공증·골밀도검사
+    sex: M
+    age_min: 70
+    interval_years: 2
+    detail: 남성도 70세+ 권장
+  - name: 치매 선별검사(인지기능장애검사)
+    sex: all
+    age_min: 66
+    interval_years: 2
+    detail: 국가검진 — 66세+ 2년마다
+  - name: 노인 신체기능·낙상 평가
+    sex: all
+    age_min: 66
+    interval_years: 2
+    detail: 국가검진 생활기능평가 항목
+  - name: 정신건강검사(우울증 선별)
+    sex: all
+    age_min: 20
+    interval_years: 10
+    detail: 국가검진 — 20·30·40·50·60·70세 각 1회
+  - name: 독감(인플루엔자) 예방접종
+    sex: all
+    age_min: 0
+    interval_years: 1
+    detail: 매년 가을 — 어린이·65세+ 무료 접종
+  - name: 대상포진 예방접종
+    sex: all
+    age_min: 60
+    age_max: 60
+    interval_years: 1
+    detail: 60세 전후 1회 권장
+  - name: 폐렴구균 예방접종
+    sex: all
+    age_min: 65
+    age_max: 65
+    interval_years: 1
+    detail: 65세+ 1회 (국가지원)
+
+# 생애주기 구간 (대시보드 타임라인용)
+lifecycle:
+  - stage: 영유아기
+    age_min: 0
+    age_max: 6
+    color: "#5B8DEF"
+    items:
+      - 영유아 건강검진 8회
+      - 구강검진 3회
+      - 발달 선별검사
+      - 필수 예방접종 일정
+  - stage: 아동·청소년기
+    age_min: 7
+    age_max: 19
+    color: "#39B57A"
+    items:
+      - 학생 건강검진 (초1·초4·중1·고1)
+      - 시력·척추측만 검사
+      - 구강검진·치아 관리
+      - 비만·성장 평가
+  - stage: 청년기
+    age_min: 20
+    age_max: 39
+    color: "#2FA8A0"
+    items:
+      - 일반건강검진 (2년 1회)
+      - 이상지질혈증 검사
+      - B형간염 항원·항체 검사
+      - 자궁경부세포검사 (여 20세+)
+      - 정신건강검사 (10년 1회)
+  - stage: 중장년기
+    age_min: 40
+    age_max: 64
+    color: "#E8963E"
+    items:
+      - 국가 암검진 (위·대장·간·유방·자궁경부)
+      - 위내시경 (2년), 대장검진 (50세+)
+      - 심뇌혈관 질환 위험도 평가
+      - 골밀도검사 (여 54세+)
+      - 대상포진 접종 (60세)
+  - stage: 노년기
+    age_min: 65
+    age_max: 120
+    color: "#9A6DD7"
+    items:
+      - 노인 건강 종합검진 (매년)
+      - 치매 선별검사 (66세+ 2년)
+      - 골밀도·골다공증 검사
+      - 노인 신체기능·낙상 평가
+      - 폐렴구균·독감 예방접종

@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>가족 건강 대시보드</title>
+<style>
+:root{
+  --bg:#eef1f6; --card:#ffffff; --ink:#1d2733; --sub:#67748a;
+  --brand:#4a7bd0; --brand-deep:#3a5fa8;
+  --ok:#1a9e5c; --warn:#e8a13a; --danger:#d94f45; --watch:#7a6dd7;
+  --line:#e3e8f0;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",system-ui,sans-serif;
+  padding-bottom:76px; max-width:560px; margin:0 auto;
+}
+header{
+  background:linear-gradient(135deg,var(--brand),var(--brand-deep));
+  color:#fff; padding:18px 20px 16px; border-radius:0 0 20px 20px;
+  position:sticky; top:0; z-index:5;
+}
+header h1{font-size:19px;font-weight:800}
+header .meta{font-size:12px;opacity:.85;margin-top:3px}
+main{padding:14px}
+h2.section{font-size:17px;font-weight:800;margin:18px 4px 10px}
+.card{background:var(--card);border-radius:16px;padding:14px 16px;margin-bottom:12px;
+  box-shadow:0 1px 3px rgba(29,39,51,.08)}
+.member-card{cursor:pointer;transition:transform .08s}
+.member-card:active{transform:scale(.98)}
+.mc-head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.avatar{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-size:24px;background:#eaf0fb;flex:none}
+.mc-title{font-size:16px;font-weight:800}
+.mc-stage{font-size:12px;color:var(--sub)}
+.mc-overall{margin-left:auto;font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px}
+.metric-row{display:flex;align-items:baseline;gap:8px;padding:3px 0;font-size:14px}
+.metric-row .name{color:var(--sub);width:74px;flex:none;font-size:13px}
+.metric-row .val{font-weight:700}
+.metric-row .unit{font-size:11px;color:var(--sub)}
+.badge{margin-left:auto;font-size:12px;font-weight:700;padding:2px 9px;border-radius:999px}
+.b-정상{background:#e2f5ea;color:var(--ok)} .b-주의{background:#fdf1dd;color:#b57a17}
+.b-위험{background:#fbe4e2;color:var(--danger)} .b-관찰{background:#ece9fa;color:var(--watch)}
+.spark{margin-top:6px}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 10px}
+.chip{flex:none;padding:8px 16px;border-radius:999px;background:#fff;border:1.5px solid var(--line);
+  font-size:14px;font-weight:700;color:var(--sub);cursor:pointer}
+.chip.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.chart-card h3{font-size:14px;margin-bottom:4px}
+.chart-card .sub{font-size:12px;color:var(--sub)}
+.risk-item{display:flex;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}
+.risk-item:last-child{border-bottom:none}
+.risk-dot{width:10px;height:10px;border-radius:50%;flex:none}
+ul.plain{list-style:none}
+ul.plain li{padding:6px 0 6px 2px;font-size:14px;border-bottom:1px dashed var(--line)}
+ul.plain li:last-child{border-bottom:none}
+.q-block{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.q-block:last-child{border-bottom:none}
+.q-label{flex:none;width:38px;height:38px;border-radius:12px;background:#eaf0fb;color:var(--brand-deep);
+  display:flex;align-items:center;justify-content:center;font-weight:800}
+.q-items{font-size:14px;align-self:center}
+.q-items .none{color:var(--sub)}
+.opinion{background:#f0f5ff;border-radius:12px;padding:12px;font-size:13.5px;line-height:1.6;color:#2c3d5c}
+.lc-band{border-radius:14px;padding:12px 14px;margin-bottom:10px;position:relative}
+.lc-band h4{font-size:15px;font-weight:800;margin-bottom:6px}
+.lc-band ul{list-style:none;font-size:13px;line-height:1.7}
+.lc-me{display:inline-block;font-size:12px;font-weight:700;background:#fff;
+  border-radius:999px;padding:2px 10px;margin:4px 4px 0 0;box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.tabbar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:560px;
+  background:#fff;border-top:1px solid var(--line);display:flex;z-index:10}
+.tabbar button{flex:1;padding:9px 0 max(9px, env(safe-area-inset-bottom));background:none;border:none;
+  font-size:11px;color:var(--sub);cursor:pointer;font-weight:700}
+.tabbar button .ic{display:block;font-size:20px;margin-bottom:2px}
+.tabbar button.on{color:var(--brand)}
+.btn{display:block;width:100%;padding:12px;border:none;border-radius:12px;background:var(--brand);
+  color:#fff;font-size:15px;font-weight:800;cursor:pointer;margin-top:6px}
+.btn.ghost{background:#eaf0fb;color:var(--brand-deep)}
+.footnote{font-size:11.5px;color:var(--sub);text-align:center;margin:16px 8px}
+.empty{color:var(--sub);font-size:14px;padding:8px 0}
+section.view{display:none} section.view.on{display:block}
+</style>
+</head>
+<body>
+<header>
+  <h1 id="hd-title">우리 가족 건강</h1>
+  <div class="meta" id="hd-meta"></div>
+</header>
+<main>
+  <section id="view-home" class="view on">
+    <h2 class="section">가족 건강 현황</h2>
+    <div id="home-cards"></div>
+  </section>
+
+  <section id="view-member" class="view">
+    <h2 class="section">구성원 상세</h2>
+    <div class="chips" id="member-chips"></div>
+    <div id="member-detail"></div>
+  </section>
+
+  <section id="view-plan" class="view">
+    <h2 class="section" id="plan-title">연도별 건강 일정</h2>
+    <div class="chips" id="plan-chips"></div>
+    <div id="plan-detail"></div>
+    <h2 class="section">생애주기 건강검진 일정</h2>
+    <div id="lifecycle"></div>
+  </section>
+
+  <div class="footnote">
+    본 대시보드는 로컬 파일로만 동작하며 어떤 데이터도 외부로 전송하지 않습니다.<br>
+    규칙 기반 참고 정보이며 의학적 진단이 아닙니다 — 이상 소견은 의료진과 상담하세요.
+  </div>
+</main>
+
+<nav class="tabbar">
+  <button data-tab="home" class="on"><span class="ic">🏠</span>홈</button>
+  <button data-tab="member"><span class="ic">👨‍👩‍👧‍👦</span>가족</button>
+  <button data-tab="plan"><span class="ic">📅</span>일정</button>
+</nav>
+
+<script>
+const DATA = __DATA_JSON__;
+const S_COLOR = {"정상":"var(--ok)","주의":"var(--warn)","위험":"var(--danger)","관찰":"var(--watch)"};
+const AVATAR = {"나":"🧑","부인":"👩","남편":"👨","아들":"👦","딸":"👧",
+  "아버지":"👴","어머니":"👵","할아버지":"👴","할머니":"👵"};
+let state = { tab:"home", member: (DATA.members[0]||{}).relation };
+
+function esc(s){return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function member(rel){return DATA.members.find(m=>m.relation===rel);}
+function overall(m){
+  const order={"정상":0,"관찰":1,"주의":2,"위험":3};
+  let worst="정상";
+  for(const r of m.risks||[]) if(order[r.status]>order[worst]) worst=r.status;
+  return worst;
+}
+function fmt(v){return v==null?"-":(Math.round(v*10)/10);}
+
+/* ---------- SVG 차트 ---------- */
+function sparkline(points, color, w=180, h=36){
+  if(!points||points.length<2) return "";
+  const xs=points.map(p=>p.year), ys=points.map(p=>p.value);
+  const x0=Math.min(...xs), x1=Math.max(...xs), y0=Math.min(...ys), y1=Math.max(...ys);
+  const px=v=>4+(w-8)*(x1===x0?0.5:(v-x0)/(x1-x0));
+  const py=v=>h-5-(h-10)*(y1===y0?0.5:(v-y0)/(y1-y0));
+  const pts=points.map(p=>`${px(p.year).toFixed(1)},${py(p.value).toFixed(1)}`).join(" ");
+  return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+    <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2.2"
+      stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="${px(xs[xs.length-1])}" cy="${py(ys[ys.length-1])}" r="3" fill="${color}"/></svg>`;
+}
+function lineChart(metric, points, sex){
+  const w=300,h=140,padL=34,padB=20,padT=12,padR=10;
+  const xs=points.map(p=>p.year), ys=points.map(p=>p.value);
+  const bands=(DATA.ranges[metric==="허리둘레"?(sex==="F"?"허리둘레여":"허리둘레남"):metric]||{}).bands;
+  let yMin=Math.min(...ys), yMax=Math.max(...ys);
+  if(bands) for(const b of bands) if(b.up_to!=null){yMin=Math.min(yMin,b.up_to);yMax=Math.max(yMax,b.up_to);}
+  const pad=(yMax-yMin)*0.15||5; yMin-=pad; yMax+=pad;
+  const x0=Math.min(...xs), x1=Math.max(...xs);
+  const px=v=>padL+(w-padL-padR)*(x1===x0?0.5:(v-x0)/(x1-x0));
+  const py=v=>h-padB-(h-padT-padB)*((v-yMin)/(yMax-yMin));
+  let g="";
+  if(bands){ // 기준선
+    for(const b of bands) if(b.up_to!=null && b.up_to>yMin && b.up_to<yMax){
+      const y=py(b.up_to);
+      g+=`<line x1="${padL}" y1="${y}" x2="${w-padR}" y2="${y}" stroke="#d9b26a" stroke-dasharray="4 3" stroke-width="1"/>
+          <text x="${w-padR}" y="${y-3}" font-size="9" fill="#b08a3e" text-anchor="end">${b.up_to}</text>`;
+    }
+  }
+  const pts=points.map(p=>`${px(p.year).toFixed(1)},${py(p.value).toFixed(1)}`).join(" ");
+  const dots=points.map(p=>`<circle cx="${px(p.year)}" cy="${py(p.value)}" r="3.2" fill="var(--brand)"/>
+    <text x="${px(p.year)}" y="${py(p.value)-7}" font-size="9.5" font-weight="700" fill="#33405a" text-anchor="middle">${fmt(p.value)}</text>`).join("");
+  const xlabels=[...new Set(xs)].map(x=>`<text x="${px(x)}" y="${h-5}" font-size="9.5" fill="#67748a" text-anchor="middle">${x}</text>`).join("");
+  return `<svg width="100%" viewBox="0 0 ${w} ${h}">
+    <line x1="${padL}" y1="${h-padB}" x2="${w-padR}" y2="${h-padB}" stroke="#dfe5ee"/>
+    ${g}<polyline points="${pts}" fill="none" stroke="var(--brand)" stroke-width="2.4"
+      stroke-linecap="round" stroke-linejoin="round"/>${dots}${xlabels}</svg>`;
+}
+
+/* ---------- 홈: 가족 현황 카드 ---------- */
+function badge(st){return st?`<span class="badge b-${st}">${st}</span>`:"";}
+function homeCards(){
+  const el=document.getElementById("home-cards");
+  if(!DATA.members.length){el.innerHTML=`<div class="card empty">구성원이 없습니다. <code>14health member add 나 --birth 1980 --sex M</code> 으로 등록하세요.</div>`;return;}
+  el.innerHTML=DATA.members.map(m=>{
+    const ov=overall(m);
+    const bp=(m.latest["수축기혈압"]&&m.latest["이완기혈압"])
+      ?`${fmt(m.latest["수축기혈압"].value)}/${fmt(m.latest["이완기혈압"].value)}`:null;
+    const bpSt=m.latest["수축기혈압"]?.status;
+    const glu=m.latest["공복혈당"]||m.latest["식후혈당"];
+    const gluName=m.latest["공복혈당"]?"공복혈당":"식후혈당";
+    const w=m.latest["체중"], bmi=m.latest["BMI"];
+    const series=m.series["체중"]||m.series["BMI"]||[];
+    const rows=[
+      bp?`<div class="metric-row"><span class="name">혈압</span><span class="val">${bp}</span><span class="unit">mmHg</span>${badge(bpSt)}</div>`:"",
+      glu?`<div class="metric-row"><span class="name">${gluName}</span><span class="val">${fmt(glu.value)}</span><span class="unit">mg/dL</span>${badge(glu.status)}</div>`:"",
+      bmi?`<div class="metric-row"><span class="name">BMI</span><span class="val">${fmt(bmi.value)}</span>${badge(bmi.status)}</div>`:"",
+      w?`<div class="metric-row"><span class="name">체중</span><span class="val">${fmt(w.value)}</span><span class="unit">kg</span></div>`:"",
+    ].join("");
+    return `<div class="card member-card" onclick="selectMember('${esc(m.relation)}')">
+      <div class="mc-head">
+        <div class="avatar">${AVATAR[m.relation]||"🙂"}</div>
+        <div><div class="mc-title">${esc(m.relation)} (${m.age}세)</div>
+        <div class="mc-stage">${esc(m.stage)}</div></div>
+        <span class="mc-overall b-${ov}">${ov==="정상"?"정상":ov+" 필요"}</span>
+      </div>
+      ${rows||'<div class="empty">검진 수치가 아직 없습니다.</div>'}
+      ${sparkline(series, S_COLOR[ov])}
+    </div>`;
+  }).join("");
+}
+
+/* ---------- 가족: 구성원 상세 ---------- */
+function chips(containerId){
+  document.getElementById(containerId).innerHTML=DATA.members.map(m=>
+    `<div class="chip ${m.relation===state.member?"on":""}" onclick="setMember('${esc(m.relation)}')">${AVATAR[m.relation]||"🙂"} ${esc(m.relation)}</div>`).join("");
+}
+function memberDetail(){
+  chips("member-chips");
+  const m=member(state.member);
+  const el=document.getElementById("member-detail");
+  if(!m){el.innerHTML="";return;}
+  const charts=Object.keys(m.series).filter(k=>m.series[k].length>=2)
+    .concat(Object.keys(m.series).filter(k=>m.series[k].length===1)).slice(0,8)
+    .map(k=>{
+      const info=m.latest[k]||{};
+      return `<div class="card chart-card"><h3>${esc(k)} ${badge(info.status)}</h3>
+      <div class="sub">최근 ${fmt(info.value)} ${esc(info.unit||"")} (${info.year||"-"})</div>
+      ${m.series[k].length>=2?lineChart(k,m.series[k],m.sex):""}</div>`;
+    }).join("");
+  const risks=(m.risks||[]).map(r=>`<div class="risk-item">
+      <span class="risk-dot" style="background:${S_COLOR[r.status]}"></span>
+      <span><b>${esc(r.metric)}</b> ${r.value!=null?fmt(r.value)+" "+esc(r.unit):""}
+      — ${esc(r.label)}${r.trend?` · ${esc(r.trend)} 추세`:""}${r.family_history?" · 가족력":""}</span>
+      ${badge(r.status)}</div>`).join("");
+  const recs=(m.recommendations||[]).map(r=>
+    `<li>${r.family_history?"⭐ ":""}${esc(r.name)} — ${r.interval_years}년 주기</li>`).join("");
+  const life=[...(m.lifestyle.risk||[]).map(a=>`<li>💡 ${esc(a)}</li>`),
+              ...(m.lifestyle.age_band||[]).map(a=>`<li>${esc(a)}</li>`)].join("");
+  const depts=(m.departments||[]).map(d=>
+    `<li><b>${esc(d.dept)}</b> — ${esc(d.cadence)} <span class="badge b-${d.status}">${d.status}</span></li>`).join("");
+  el.innerHTML=`
+    <div class="card"><div class="mc-head">
+      <div class="avatar">${AVATAR[m.relation]||"🙂"}</div>
+      <div><div class="mc-title">${esc(m.relation)} (${m.age}세 · ${m.sex==="F"?"여":"남"})</div>
+      <div class="mc-stage">${esc(m.stage)} · ${m.birth_year}년생</div></div></div>
+      <div class="opinion">${esc(m.opinion)}</div></div>
+    <div class="card"><h3 style="font-size:14px;margin-bottom:6px">주요 질병 위험도</h3>
+      ${risks||'<div class="empty">위험 요인이 없습니다 👍</div>'}</div>
+    ${charts}
+    <div class="card"><h3 style="font-size:14px;margin-bottom:6px">추천 검진 항목</h3>
+      <ul class="plain">${recs||'<li class="empty">해당 없음</li>'}</ul></div>
+    ${depts?`<div class="card"><h3 style="font-size:14px;margin-bottom:6px">추천 병원·진료 주기</h3><ul class="plain">${depts}</ul></div>`:""}
+    <div class="card"><h3 style="font-size:14px;margin-bottom:6px">생활습관 권고</h3>
+      <ul class="plain">${life}</ul></div>
+    <button class="btn" onclick="sharePNG()">📤 공유 이미지 저장 (카톡 첨부용)</button>`;
+}
+
+/* ---------- 일정 ---------- */
+function planDetail(){
+  chips("plan-chips");
+  const m=member(state.member);
+  const el=document.getElementById("plan-detail");
+  document.getElementById("plan-title").textContent=(m?m.relation+" ":"")+"연도별 건강 일정";
+  if(!m){el.innerHTML="";return;}
+  const qs=["Q1","Q2","Q3","Q4"].map(q=>{
+    const items=(m.quarters[q]||[]);
+    return `<div class="q-block"><div class="q-label">${q}</div>
+      <div class="q-items">${items.length?items.map(esc).join("<br>"):'<span class="none">예정 없음</span>'}</div></div>`;
+  }).join("");
+  el.innerHTML=`<div class="card">
+    <h3 style="font-size:14px;margin-bottom:6px">${esc(m.relation)}의 향후 1년 검진 계획</h3>${qs}
+    <div style="height:10px"></div>
+    <div class="opinion"><b>소견</b> · ${esc(m.opinion)}</div></div>`;
+}
+function lifecycle(){
+  document.getElementById("lifecycle").innerHTML=DATA.lifecycle.map(s=>{
+    const mem=DATA.members.filter(m=>m.age>=s.age_min&&m.age<=s.age_max)
+      .map(m=>`<span class="lc-me">${AVATAR[m.relation]||"🙂"} ${esc(m.relation)} ${m.age}세</span>`).join("");
+    const range=s.age_max>=120?`${s.age_min}세 이상`:`${s.age_min}~${s.age_max}세`;
+    return `<div class="lc-band" style="background:${s.color}22;border-left:5px solid ${s.color}">
+      <h4 style="color:${s.color}">● ${esc(s.stage)} (${range})</h4>
+      <ul>${s.items.map(i=>`<li>· ${esc(i)}</li>`).join("")}</ul>${mem}</div>`;
+  }).join("");
+}
+
+/* ---------- 공유 PNG (로컬 캔버스 렌더 — 외부 전송 없음) ---------- */
+function sharePNG(){
+  const m=member(state.member); if(!m) return;
+  const W=640, rowH=44;
+  const metrics=Object.entries(m.latest).slice(0,8);
+  const H=190+metrics.length*rowH+((m.quarters.Q1||[]).length+(m.quarters.Q2||[]).length+
+    (m.quarters.Q3||[]).length+(m.quarters.Q4||[]).length>0?230:40);
+  const c=document.createElement("canvas"); c.width=W*2; c.height=H*2;
+  const x=c.getContext("2d"); x.scale(2,2);
+  const font=w=>`${w} 15px "Apple SD Gothic Neo","Malgun Gothic",sans-serif`;
+  x.fillStyle="#f2f5fa"; x.fillRect(0,0,W,H);
+  x.fillStyle="#4a7bd0"; x.beginPath(); x.roundRect(0,0,W,86,[0,0,22,22]); x.fill();
+  x.fillStyle="#fff"; x.font='800 24px "Malgun Gothic",sans-serif';
+  x.fillText(`${m.relation} 건강 요약 (${m.age}세 · ${m.stage})`,22,38);
+  x.font=font("400"); x.fillText(`14health · ${DATA.generated}`,22,66);
+  let y=116;
+  x.font='800 17px sans-serif'; x.fillStyle="#1d2733"; x.fillText("최근 검진 수치",22,y); y+=14;
+  const SC={"정상":"#1a9e5c","주의":"#e8a13a","위험":"#d94f45"};
+  for(const [k,v] of metrics){
+    x.fillStyle="#fff"; x.beginPath(); x.roundRect(18,y,W-36,rowH-8,10); x.fill();
+    x.fillStyle="#67748a"; x.font=font("600"); x.fillText(k,32,y+24);
+    x.fillStyle="#1d2733"; x.font=font("800");
+    x.fillText(`${fmt(v.value)} ${v.unit||""}`,190,y+24);
+    if(v.status){x.fillStyle=SC[v.status]||"#7a6dd7"; x.font=font("700");
+      x.fillText(v.status+(v.label&&v.label!==v.status?` (${v.label})`:""),330,y+24);}
+    y+=rowH;
+  }
+  y+=18; x.fillStyle="#1d2733"; x.font='800 17px sans-serif';
+  x.fillText("향후 1년 검진 계획",22,y); y+=12;
+  for(const q of ["Q1","Q2","Q3","Q4"]){
+    const items=m.quarters[q]||[];
+    x.fillStyle="#4a7bd0"; x.font=font("800"); x.fillText(q,26,y+22);
+    x.fillStyle="#33405a"; x.font=font("500");
+    x.fillText(items.length?items.join(", ").slice(0,60):"예정 없음",70,y+22);
+    y+=32;
+  }
+  y+=8; x.fillStyle="#8a94a6"; x.font='400 11px sans-serif';
+  x.fillText("규칙 기반 참고 정보 · 의학적 진단 아님 · 14health 로컬 생성",22,y+14);
+  const a=document.createElement("a");
+  a.download=`${m.relation}-건강요약-${DATA.generated}.png`;
+  a.href=c.toDataURL("image/png"); a.click();
+}
+
+/* ---------- 내비게이션 ---------- */
+function setTab(tab){
+  state.tab=tab;
+  document.querySelectorAll(".tabbar button").forEach(b=>b.classList.toggle("on",b.dataset.tab===tab));
+  document.querySelectorAll("section.view").forEach(v=>v.classList.remove("on"));
+  document.getElementById("view-"+(tab==="home"?"home":tab==="member"?"member":"plan")).classList.add("on");
+  render();
+}
+function setMember(rel){state.member=rel;render();}
+function selectMember(rel){state.member=rel;setTab("member");}
+document.querySelectorAll(".tabbar button").forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
+
+function render(){
+  document.getElementById("hd-meta").textContent=
+    `생성일 ${DATA.generated} · 구성원 ${DATA.members.length}명 · 로컬 전용`;
+  homeCards(); memberDetail(); planDetail(); lifecycle();
+}
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,173 @@
+# 검진 수치 기준치 (대한민국 국가건강검진 판정 기준 참고)
+# bands: 순서대로 up_to(미만) 비교, 마지막 band는 up_to 없음
+# status: 정상 | 주의 | 위험
+metrics:
+  수축기혈압:
+    unit: mmHg
+    tag: 혈압
+    bands:
+      - { up_to: 120, status: 정상 }
+      - { up_to: 140, status: 주의, label: 고혈압 전단계~1기 }
+      - { status: 위험, label: 고혈압 2기 }
+  이완기혈압:
+    unit: mmHg
+    tag: 혈압
+    bands:
+      - { up_to: 80, status: 정상 }
+      - { up_to: 90, status: 주의, label: 고혈압 전단계~1기 }
+      - { status: 위험, label: 고혈압 2기 }
+  공복혈당:
+    unit: mg/dL
+    tag: 혈당
+    bands:
+      - { up_to: 100, status: 정상 }
+      - { up_to: 126, status: 주의, label: 공복혈당장애 }
+      - { status: 위험, label: 당뇨병 의심 }
+  식후혈당:
+    unit: mg/dL
+    tag: 혈당
+    bands:
+      - { up_to: 140, status: 정상 }
+      - { up_to: 200, status: 주의, label: 내당능장애 }
+      - { status: 위험, label: 당뇨병 의심 }
+  당화혈색소:
+    unit: "%"
+    tag: 혈당
+    bands:
+      - { up_to: 5.7, status: 정상 }
+      - { up_to: 6.5, status: 주의, label: 당뇨 전단계 }
+      - { status: 위험, label: 당뇨병 의심 }
+  BMI:
+    unit: kg/m²
+    tag: 비만
+    bands:
+      - { up_to: 18.5, status: 주의, label: 저체중 }
+      - { up_to: 23, status: 정상 }
+      - { up_to: 25, status: 주의, label: 과체중 }
+      - { status: 위험, label: 비만 }
+  허리둘레남:
+    unit: cm
+    tag: 비만
+    bands:
+      - { up_to: 90, status: 정상 }
+      - { status: 주의, label: 복부비만 }
+  허리둘레여:
+    unit: cm
+    tag: 비만
+    bands:
+      - { up_to: 85, status: 정상 }
+      - { status: 주의, label: 복부비만 }
+  총콜레스테롤:
+    unit: mg/dL
+    tag: 지질
+    bands:
+      - { up_to: 200, status: 정상 }
+      - { up_to: 240, status: 주의, label: 경계 }
+      - { status: 위험, label: 높음 }
+  LDL:
+    unit: mg/dL
+    tag: 지질
+    bands:
+      - { up_to: 130, status: 정상 }
+      - { up_to: 160, status: 주의, label: 경계 }
+      - { status: 위험, label: 높음 }
+  HDL:
+    unit: mg/dL
+    tag: 지질
+    higher_is_better: true
+    bands:
+      - { up_to: 40, status: 주의, label: 낮음 }
+      - { status: 정상 }
+  중성지방:
+    unit: mg/dL
+    tag: 지질
+    bands:
+      - { up_to: 150, status: 정상 }
+      - { up_to: 200, status: 주의, label: 경계 }
+      - { status: 위험, label: 높음 }
+  AST:
+    unit: U/L
+    tag: 간
+    bands:
+      - { up_to: 40, status: 정상 }
+      - { up_to: 80, status: 주의, label: 경도 상승 }
+      - { status: 위험, label: 간기능 이상 의심 }
+  ALT:
+    unit: U/L
+    tag: 간
+    bands:
+      - { up_to: 40, status: 정상 }
+      - { up_to: 80, status: 주의, label: 경도 상승 }
+      - { status: 위험, label: 간기능 이상 의심 }
+  감마GTP:
+    unit: U/L
+    tag: 간
+    bands:
+      - { up_to: 63, status: 정상 }
+      - { up_to: 100, status: 주의, label: 경도 상승 }
+      - { status: 위험, label: 간기능 이상 의심 }
+  크레아티닌:
+    unit: mg/dL
+    tag: 신장
+    bands:
+      - { up_to: 1.2, status: 정상 }
+      - { up_to: 1.5, status: 주의 }
+      - { status: 위험, label: 신장기능 저하 의심 }
+  eGFR:
+    unit: mL/min
+    tag: 신장
+    higher_is_better: true
+    bands:
+      - { up_to: 60, status: 위험, label: 신장기능 저하 }
+      - { up_to: 90, status: 주의, label: 경계 }
+      - { status: 정상 }
+  혈색소:
+    unit: g/dL
+    tag: 빈혈
+    higher_is_better: true
+    bands:
+      - { up_to: 12, status: 주의, label: 빈혈 의심 }
+      - { status: 정상 }
+
+# 가족력 질환 → 관련 수치 태그 (위험도 가중)
+family_history_tags:
+  고혈압: 혈압
+  뇌졸중: 혈압
+  심근경색: 지질
+  심장질환: 지질
+  당뇨: 혈당
+  당뇨병: 혈당
+  간암: 간
+  간질환: 간
+  신장질환: 신장
+
+# 수치 태그 → 권장 진료과·방문 주기
+departments:
+  혈압:
+    dept: 내과(순환기)
+    주의: 3~6개월마다 혈압 추적 측정, 가정혈압 기록
+    위험: 2~4주 내 진료 — 고혈압 약물치료 상담
+  혈당:
+    dept: 내과(내분비)
+    주의: 6개월마다 공복혈당·당화혈색소 추적
+    위험: 1개월 내 진료 — 당뇨 정밀검사(경구당부하 등)
+  지질:
+    dept: 내과(순환기/가정의학과)
+    주의: 6~12개월마다 지질검사 추적
+    위험: 1~2개월 내 진료 — 스타틴 치료 상담
+  비만:
+    dept: 가정의학과(비만클리닉)
+    주의: 3~6개월 체중·허리둘레 추적
+    위험: 3개월 내 진료 — 대사증후군 평가
+  간:
+    dept: 내과(소화기)
+    주의: 3~6개월 후 간기능 재검
+    위험: 1개월 내 진료 — 간초음파·간염 검사
+  신장:
+    dept: 내과(신장)
+    주의: 6개월마다 크레아티닌·요검사 추적
+    위험: 1개월 내 진료 — 신장 정밀검사
+  빈혈:
+    dept: 내과(혈액)
+    주의: 3개월 후 재검 — 철분 수치 확인
+    위험: 1개월 내 진료
