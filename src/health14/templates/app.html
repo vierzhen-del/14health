@@ -99,6 +99,21 @@ textarea{resize:vertical;min-height:56px}
   padding:10px 18px;border-radius:999px;font-size:13.5px;z-index:50;opacity:0;transition:opacity .2s;
   pointer-events:none;max-width:90%;text-align:center}
 .toast.show{opacity:1}
+.seg{display:flex;gap:4px;background:#eef1f6;border-radius:12px;padding:4px;margin:8px 0 4px;
+  overflow-x:auto}
+.seg button{flex:1;white-space:nowrap;padding:7px 10px;border:none;border-radius:9px;background:none;
+  font-size:12.5px;font-weight:700;color:var(--sub);cursor:pointer;font-family:inherit}
+.seg button.on{background:#fff;color:var(--brand-deep);box-shadow:0 1px 2px rgba(0,0,0,.1)}
+.method-panel{display:none;margin-top:4px}
+.method-panel.on{display:block}
+.ocr-result{background:#f7f9fc;border:1px solid var(--line);border-radius:10px;padding:10px;
+  margin-top:8px;font-size:12.5px}
+.ocr-result pre{white-space:pre-wrap;color:var(--sub);max-height:120px;overflow-y:auto;
+  font-size:11.5px;margin:6px 0}
+.parsed-chips{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0}
+.parsed-chips span{background:#eaf0fb;color:var(--brand-deep);border-radius:999px;
+  padding:2px 10px;font-size:12px;font-weight:700}
+.hint{font-size:12px;color:var(--sub);line-height:1.6;margin:6px 0}
 
 /* ---- 최초실행 setup 화면 ---- */
 #setup{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
@@ -172,6 +187,44 @@ textarea{resize:vertical;min-height:56px}
 
     <div class="card">
       <h3 style="font-size:14px;margin-bottom:6px">📋 검진 수치 입력</h3>
+      <div class="seg" id="ck-methods">
+        <button data-m="direct" class="on">직접 입력</button>
+        <button data-m="chat">💬 대화 텍스트</button>
+        <button data-m="photo">📷 사진</button>
+        <button data-m="folder">🗂 폴더 이미지</button>
+        <button data-m="md">📄 MD 파일</button>
+      </div>
+
+      <div class="method-panel" id="mp-chat">
+        <label>검진 결과를 자유롭게 적어주세요</label>
+        <textarea id="chat-text" placeholder="예: 나 2025년 검진 혈압 138/88 체중 80kg 공복혈당 115 LDL 152"></textarea>
+        <button class="btn ghost" onclick="parseChatText()">🔍 텍스트 분석 → 아래 폼에 채우기</button>
+        <div id="chat-result"></div>
+      </div>
+
+      <div class="method-panel" id="mp-photo">
+        <label>검진 결과지 사진 선택 (복수 가능)</label>
+        <input type="file" id="photo-files" accept="image/*" multiple>
+        <button class="btn ghost" onclick="ocrPhotos()">🔍 사진 분석 (로컬 OCR)</button>
+        <p class="hint">사진은 이 컴퓨터 안에서만 처리됩니다(tesseract 필요).
+          더 정확한 판독은 Claude Code의 /검진분석 스킬을 사용하세요.</p>
+        <div id="photo-result"></div>
+      </div>
+
+      <div class="method-panel" id="mp-folder">
+        <label>이미지가 들어있는 폴더 경로</label>
+        <input type="text" id="folder-path" placeholder="예: ~/Pictures/검진캡쳐">
+        <button class="btn ghost" onclick="ocrFolder()">🔍 폴더 내 이미지 분석 (로컬 OCR)</button>
+        <div id="folder-result"></div>
+      </div>
+
+      <div class="method-panel" id="mp-md">
+        <label>MD 파일 선택 (옵시디안 노트 형식이면 바로 저장 가능)</label>
+        <input type="file" id="md-file" accept=".md,text/markdown">
+        <button class="btn ghost" onclick="parseMdFile()">🔍 MD 파일 해석</button>
+        <div id="md-result"></div>
+      </div>
+
       <label>구성원</label><select id="ck-relation"></select>
       <div class="row2">
         <div><label>연도</label><input type="number" id="ck-year" placeholder="2025"></div>
@@ -181,7 +234,7 @@ textarea{resize:vertical;min-height:56px}
       <div id="ck-rows"></div>
       <button type="button" class="btn ghost sm" onclick="addCheckupRow()">+ 항목 추가</button>
       <label>메모 (선택)</label><textarea id="ck-memo"></textarea>
-      <button class="btn" onclick="submitCheckup()">검진 기록 저장</button>
+      <button class="btn" onclick="submitCheckup()">검진 기록 저장 (옵시디안에 기록)</button>
       <datalist id="metric-options">
         <option value="혈압"><option value="공복혈당"><option value="식후혈당">
         <option value="당화혈색소"><option value="체중"><option value="신장">
@@ -234,6 +287,22 @@ textarea{resize:vertical;min-height:56px}
       <button class="btn ghost" onclick="doExport()">Vault 전체 내보내기 (zip)</button>
       <button class="btn ghost" onclick="doDashboardExport()">정적 대시보드 HTML 생성</button>
       <div id="export-links" style="margin-top:8px;font-size:13px"></div>
+    </div>
+
+    <div class="card">
+      <h3 style="font-size:14px;margin-bottom:6px">📄 MD 내보내기 / 읽어오기</h3>
+      <label>구성원 기록 MD 내보내기</label>
+      <div class="field-row">
+        <select id="mdx-relation" style="flex:1"></select>
+        <button class="btn sm" style="margin-top:0" onclick="doMdExport()">내보내기</button>
+      </div>
+      <div id="mdx-result" style="margin-top:6px;font-size:13px"></div>
+      <label>MD 파일/폴더 읽어오기 (경로)</label>
+      <div class="field-row">
+        <input type="text" id="mdi-path" placeholder="예: ~/Downloads/md-나-20260712">
+        <button class="btn sm" style="margin-top:0" onclick="doMdImport()">읽어오기</button>
+      </div>
+      <div id="mdi-result" style="margin-top:6px;font-size:13px"></div>
     </div>
 
     <div class="card">
@@ -371,7 +440,7 @@ async function loadData(){
 
 function populateRelationSelects(){
   const relations = (DATA.members||[]).map(m=>m.relation);
-  for(const id of ["ck-relation","vs-relation"]){
+  for(const id of ["ck-relation","vs-relation","mdx-relation"]){
     const el = document.getElementById(id);
     const current = el.value;
     el.innerHTML = relations.length
@@ -546,6 +615,120 @@ function lifecycle(){
   }).join("");
 }
 
+/* ---------- 입력: 방식 선택 ---------- */
+document.querySelectorAll("#ck-methods button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll("#ck-methods button").forEach(x=>x.classList.toggle("on",x===b));
+  document.querySelectorAll(".method-panel").forEach(p=>p.classList.remove("on"));
+  const panel=document.getElementById("mp-"+b.dataset.m);
+  if(panel) panel.classList.add("on");
+});
+
+function fillCheckupForm(parsed){
+  if(parsed.relation && member(parsed.relation))
+    document.getElementById("ck-relation").value=parsed.relation;
+  if(parsed.year) document.getElementById("ck-year").value=parsed.year;
+  if(parsed.date) document.getElementById("ck-date").value=parsed.date;
+  const metrics=parsed.metrics||{};
+  if(Object.keys(metrics).length){
+    document.getElementById("ck-rows").innerHTML="";
+    for(const [k,v] of Object.entries(metrics)) addCheckupRow(k,v);
+    addCheckupRow();
+  }
+  toast(`수치 ${Object.keys(metrics).length}개를 폼에 채웠습니다 — 확인 후 저장하세요.`);
+}
+function parsedChips(parsed){
+  const m=parsed.metrics||{};
+  const chips=Object.entries(m).map(([k,v])=>`<span>${esc(k)} ${esc(v)}</span>`).join("");
+  const meta=[parsed.relation?`대상 ${esc(parsed.relation)}`:null,
+              parsed.year?`연도 ${parsed.year}`:null].filter(Boolean).join(" · ");
+  return `<div class="parsed-chips">${chips||'<span style="background:#fbe4e2;color:var(--danger)">추출된 수치 없음</span>'}</div>`
+    + (meta?`<div class="hint">${meta}</div>`:"");
+}
+
+async function parseChatText(){
+  const text=document.getElementById("chat-text").value.trim();
+  if(!text) return toast("텍스트를 입력하세요.");
+  try{
+    const r=await postJSON("/api/parse-text",{text});
+    document.getElementById("chat-result").innerHTML=`<div class="ocr-result">${parsedChips(r.parsed)}</div>`;
+    fillCheckupForm(r.parsed);
+  }catch(e){ toast(e.message); }
+}
+
+function fileToBase64(file){
+  return new Promise((res,rej)=>{
+    const rd=new FileReader();
+    rd.onload=()=>res(rd.result.split(",")[1]);
+    rd.onerror=rej;
+    rd.readAsDataURL(file);
+  });
+}
+function renderOcrResults(containerId, results){
+  document.getElementById(containerId).innerHTML=results.map((r,i)=>
+    `<div class="ocr-result"><b>${esc(r.file.split("/").pop())}</b>
+     ${parsedChips(r.parsed)}
+     <button class="btn ghost sm" onclick='fillCheckupForm(${JSON.stringify(r.parsed).replace(/'/g,"&#39;")})'>이 결과를 폼에 채우기</button>
+     <pre>${esc(r.text.slice(0,600))}</pre></div>`).join("");
+}
+async function ocrPhotos(){
+  const files=document.getElementById("photo-files").files;
+  if(!files.length) return toast("사진을 선택하세요.");
+  toast("사진 분석 중…");
+  const all=[];
+  try{
+    for(const f of files){
+      const b64=await fileToBase64(f);
+      const r=await postJSON("/api/ocr",{imageBase64:b64, filename:f.name});
+      all.push(...r.results);
+    }
+    renderOcrResults("photo-result", all);
+    if(all.length===1) fillCheckupForm(all[0].parsed);
+  }catch(e){ document.getElementById("photo-result").innerHTML=
+    `<div class="ocr-result">${esc(e.message)}</div>`; }
+}
+async function ocrFolder(){
+  const folder=document.getElementById("folder-path").value.trim();
+  if(!folder) return toast("폴더 경로를 입력하세요.");
+  toast("폴더 이미지 분석 중…");
+  try{
+    const r=await postJSON("/api/ocr",{folder});
+    renderOcrResults("folder-result", r.results);
+  }catch(e){ document.getElementById("folder-result").innerHTML=
+    `<div class="ocr-result">${esc(e.message)}</div>`; }
+}
+
+async function parseMdFile(){
+  const f=document.getElementById("md-file").files[0];
+  if(!f) return toast("MD 파일을 선택하세요.");
+  const content=await f.text();
+  try{
+    const r=await postJSON("/api/md/parse",{content});
+    const box=document.getElementById("md-result");
+    if(r.kind==="checkup"||r.kind==="visit"){
+      const d=r.data;
+      const desc=r.kind==="checkup"
+        ?`검진 노트 — ${esc(d.relation||"?")} / ${d.year||"?"}년 / 수치 ${Object.keys(d.metrics||{}).length}개`
+        :`진료 노트 — ${esc(d.relation||"?")} / ${esc(d.date||"?")} / ${esc(d.hospital||"")}`;
+      box.innerHTML=`<div class="ocr-result">✅ 옵시디안 노트 형식 인식: ${desc}
+        <button class="btn sm" style="margin-top:8px" onclick="importMdDirect()">바로 저장</button></div>`;
+      window._mdContent=content;
+    }else if(r.kind==="parsed"){
+      box.innerHTML=`<div class="ocr-result">${parsedChips(r.data)}</div>`;
+      fillCheckupForm(r.data);
+    }else{
+      box.innerHTML=`<div class="ocr-result">${esc(r.error||"해석할 수 없는 형식입니다.")}</div>`;
+    }
+  }catch(e){ toast(e.message); }
+}
+async function importMdDirect(){
+  try{
+    const r=await postJSON("/api/md/import",{content:window._mdContent,
+      relation:document.getElementById("ck-relation").value||undefined});
+    if(r.saved){ toast("옵시디안에 저장 완료"); await loadData(); }
+    else toast(r.error||"저장하지 못했습니다.");
+  }catch(e){ toast(e.message); }
+}
+
 /* ---------- 입력 ---------- */
 function addCheckupRow(name, value){
   const wrap=document.createElement("div");
@@ -646,6 +829,36 @@ async function doDashboardExport(){
     toast("대시보드 HTML 생성 완료");
   }catch(e){ toast(e.message); }
 }
+async function doMdExport(){
+  const relation=document.getElementById("mdx-relation").value;
+  if(!relation) return toast("구성원을 먼저 등록하세요.");
+  try{
+    const r=await postJSON("/api/md/export",{relation});
+    document.getElementById("mdx-result").innerHTML=
+      `<div class="hint">${esc(r.dir)}</div>`+
+      r.files.map(f=>`<a class="btn ghost sm" style="margin:2px" href="${f.url}" download>⬇ ${esc(f.name)}</a>`).join("");
+    toast(`MD ${r.files.length}개 내보내기 완료`);
+  }catch(e){ toast(e.message); }
+}
+async function doMdImport(){
+  const path=document.getElementById("mdi-path").value.trim();
+  if(!path) return toast("경로를 입력하세요.");
+  try{
+    const r=await postJSON("/api/md/import",{path});
+    const results=r.results||[r];
+    const saved=results.filter(x=>x.saved).length;
+    document.getElementById("mdi-result").innerHTML=results.map(x=>{
+      const name=x.file?esc(x.file.split("/").pop()):"(내용)";
+      if(x.saved) return `<div class="hint">✅ ${name} 저장됨</div>`;
+      if(x.kind==="parsed"&&Object.keys(x.data.metrics||{}).length)
+        return `<div class="hint">⚠️ ${name} — 수치는 추출됐지만 확인 필요 (입력 탭 MD 방식 사용 권장)</div>`;
+      return `<div class="hint">— ${name}: ${esc(x.error||"건너뜀")}</div>`;
+    }).join("");
+    toast(`${saved}개 저장 완료 — 옵시디안 데이터 갱신됨`);
+    await loadData();
+  }catch(e){ toast(e.message); }
+}
+
 async function doImport(){
   const zipPath = document.getElementById("im-zip").value.trim();
   const vaultPath = document.getElementById("im-vault").value.trim();

@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from health14 import (analysis, anonymize, config, dashboard, export, intake,
-                      notion_log, ocr, share, vault, webapp)
+                      md_io, notion_log, ocr, share, vault, webapp)
 
 
 def _vault() -> Path:
@@ -211,6 +211,35 @@ def cmd_ocr(args) -> int:
     return 0
 
 
+def cmd_md(args) -> int:
+    v = _vault()
+    if args.action == "export":
+        files = md_io.export_member_md(v, args.relation)
+        vault.log_action(v, args.relation, "내보내기", "구성원 기록 MD 내보내기")
+        print(f"MD 내보내기 완료 ({len(files)}개):")
+        for f in files:
+            print(f"  - {f}")
+        return 0
+    # import
+    results = md_io.import_md_path(v, Path(args.path), args.relation)
+    saved = sum(1 for r in results if r["saved"])
+    for r in results:
+        name = Path(r["file"]).name
+        if r["saved"]:
+            print(f"저장됨: {name} → {r['path']}")
+        elif r["kind"] == "parsed" and r["data"].get("metrics"):
+            preview = ", ".join(f"{k}={v}" for k, v in r["data"]["metrics"].items())
+            rel = r["data"].get("relation") or "(미지정 — --relation 필요)"
+            year = r["data"].get("year") or "(연도 미확인)"
+            print(f"확인 필요: {name} — 대상 {rel}, 연도 {year}, 추출 수치: {preview}")
+            print("  → 확인 후 저장: 14health checkup add <관계호칭> --year <연도> "
+                  + " ".join(f"--field {k}={v}" for k, v in r["data"]["metrics"].items()))
+        else:
+            print(f"건너뜀: {name} — {r.get('error', '추출할 데이터 없음')}")
+    print(f"\n총 {len(results)}개 중 {saved}개 저장")
+    return 0
+
+
 def cmd_app(args) -> int:
     webapp.run(port=args.port, open_browser=not args.no_browser)
     return 0
@@ -327,6 +356,15 @@ def build_parser() -> argparse.ArgumentParser:
     sp = sub.add_parser("ocr", help="이미지 텍스트 추출 (tesseract 필요, 로컬 처리)")
     sp.add_argument("target", help="이미지 파일 또는 폴더")
     sp.set_defaults(func=cmd_ocr)
+
+    sp = sub.add_parser("md", help="입력 결과 MD 내보내기/읽어오기")
+    dsub = sp.add_subparsers(dest="action", required=True)
+    d1 = dsub.add_parser("export", help="구성원의 검진·진료 노트를 MD로 내보내기")
+    d1.add_argument("relation")
+    d2 = dsub.add_parser("import", help="MD 파일/폴더를 vault로 읽어오기")
+    d2.add_argument("path", help="md 파일 또는 폴더 경로")
+    d2.add_argument("--relation", help="관계호칭 (md에 명시가 없을 때)")
+    sp.set_defaults(func=cmd_md)
 
     sp = sub.add_parser("app", help="로컬 웹앱 실행 (브라우저 GUI, 외부 접속 불가)")
     sp.add_argument("--port", type=int, default=8420)

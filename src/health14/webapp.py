@@ -7,9 +7,11 @@
 """
 from __future__ import annotations
 
+import base64
 import json
 import mimetypes
 import socket
+import tempfile
 import threading
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -18,7 +20,8 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 from urllib.parse import parse_qs, quote, urlparse
 
-from health14 import analysis, anonymize, config, dashboard, export, intake, share, vault
+from health14 import (analysis, anonymize, config, dashboard, export, intake,
+                      md_io, ocr, parse, share, vault)
 
 
 def _app_html() -> str:
@@ -100,6 +103,9 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path in ("/", "/index.html"):
                 self._send_html(_app_html())
+            elif path == "/favicon.ico":
+                self.send_response(204)
+                self.end_headers()
             elif path == "/api/state":
                 self._send_json(_state_payload())
             elif path == "/api/data":
@@ -136,6 +142,16 @@ class Handler(BaseHTTPRequestHandler):
                 self._handle_export()
             elif path == "/api/import":
                 self._handle_import(data)
+            elif path == "/api/parse-text":
+                self._handle_parse_text(data)
+            elif path == "/api/ocr":
+                self._handle_ocr(data)
+            elif path == "/api/md/parse":
+                self._handle_md_parse(data)
+            elif path == "/api/md/import":
+                self._handle_md_import(data)
+            elif path == "/api/md/export":
+                self._handle_md_export(data)
             else:
                 self._error("Not Found", 404)
         except SystemExit as e:
@@ -234,6 +250,81 @@ class Handler(BaseHTTPRequestHandler):
         new_v = export.import_vault(zip_path, new_vault, bool(data.get("overwrite")))
         vault.log_action(new_v, "기타", "가져오기", "vault 가져오기 완료")
         self._send_json(_state_payload())
+
+    def _handle_parse_text(self, data: Dict[str, Any]) -> None:
+        """대화창 자유 텍스트 → 수치 후보 미리보기 (저장은 /api/note로 확정)."""
+        text = anonymize.anonymize(data.get("text", ""))
+        self._send_json({"parsed": parse.parse_checkup_text(text)})
+
+    def _handle_ocr(self, data: Dict[str, Any]) -> None:
+        """폴더 경로 또는 base64 이미지 → OCR 텍스트 + 수치 후보."""
+        if not ocr.tesseract_available():
+            return self._error(
+                "이 컴퓨터에 tesseract(로컬 OCR)가 설치되어 있지 않습니다. "
+                "설치(macOS: brew install tesseract tesseract-lang / "
+                "Windows: UB-Mannheim 배포판 / Ubuntu: apt install tesseract-ocr tesseract-ocr-kor) "
+                "하거나, Claude Code의 /검진분석 스킬로 이미지를 분석하세요.", 422)
+        if data.get("imageBase64"):
+            suffix = Path(data.get("filename") or "image.png").suffix or ".png"
+            with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+                tmp.write(base64.b64decode(data["imageBase64"]))
+                tmp_path = Path(tmp.name)
+            try:
+                results = ocr.extract_text(tmp_path)
+            finally:
+                tmp_path.unlink(missing_ok=True)
+            if data.get("filename"):
+                results[0]["file"] = data["filename"]
+        elif data.get("folder"):
+            folder = Path(data["folder"]).expanduser()
+            if not folder.exists():
+                return self._error(f"폴더가 없습니다: {folder}")
+            results = ocr.extract_text(folder)
+        else:
+            return self._error("folder 또는 imageBase64가 필요합니다.")
+        out = []
+        for r in results:
+            text = anonymize.anonymize(r["text"])
+            out.append({"file": r["file"], "text": text,
+                        "parsed": parse.parse_checkup_text(text)})
+        self._send_json({"results": out})
+
+    def _handle_md_parse(self, data: Dict[str, Any]) -> None:
+        """md 내용 미리보기 — 저장하지 않고 해석 결과만 반환."""
+        v = self._require_vault()
+        if not v:
+            return
+        result = md_io.import_md_content(v, data.get("content", ""),
+                                         data.get("relation"), confirm_only=True)
+        self._send_json(result)
+
+    def _handle_md_import(self, data: Dict[str, Any]) -> None:
+        """md 확정 저장 — content(업로드) 또는 path(파일/폴더)."""
+        v = self._require_vault()
+        if not v:
+            return
+        relation = data.get("relation")
+        if data.get("content") is not None:
+            result = md_io.import_md_content(v, data["content"], relation)
+            self._send_json(result)
+        elif data.get("path"):
+            results = md_io.import_md_path(v, Path(data["path"]).expanduser(), relation)
+            self._send_json({"results": results})
+        else:
+            self._error("content 또는 path가 필요합니다.")
+
+    def _handle_md_export(self, data: Dict[str, Any]) -> None:
+        v = self._require_vault()
+        if not v:
+            return
+        relation = data["relation"]
+        files = md_io.export_member_md(v, relation)
+        vault.log_action(v, relation, "내보내기", "구성원 기록 MD 내보내기")
+        payload = [{"name": f.name,
+                    "url": f"/api/file?path={quote(f.relative_to(v).as_posix())}"}
+                   for f in files]
+        self._send_json({"ok": True, "dir": str(files[0].parent) if files else "",
+                         "files": payload})
 
     def _serve_file(self, query: Dict[str, Any]) -> None:
         v = _current_vault()

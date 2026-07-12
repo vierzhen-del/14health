@@ -151,6 +151,51 @@ def test_file_traversal_blocked(server, tmp_path):
         assert e.code == 403
 
 
+def test_parse_text_endpoint(server, tmp_path):
+    _post(server, "/api/vault/create", {"path": str(tmp_path / "pt")})
+    r = _post(server, "/api/parse-text",
+              {"text": "나 2025년 혈압 138/88 체중 80"})
+    p = r["parsed"]
+    assert p["relation"] == "나" and p["year"] == 2025
+    assert p["metrics"]["수축기혈압"] == 138
+
+
+def test_md_parse_and_import_endpoints(server, tmp_path):
+    _post(server, "/api/vault/create", {"path": str(tmp_path / "mdp")})
+    _post(server, "/api/member", {"relation": "나", "birth": 1978, "sex": "M"})
+    content = ("---\ntype: checkup\nmember: 나\nyear: 2024\n"
+               "metrics:\n  체중: 78\n---\n\n# 검진\n")
+    preview = _post(server, "/api/md/parse", {"content": content})
+    assert preview["saved"] is False and preview["kind"] == "checkup"
+
+    result = _post(server, "/api/md/import", {"content": content})
+    assert result["saved"] is True
+
+    data = _get(server, "/api/data")
+    assert data["members"][0]["latest"]["체중"]["value"] == 78
+
+
+def test_md_export_endpoint(server, tmp_path):
+    _post(server, "/api/vault/create", {"path": str(tmp_path / "mdx")})
+    _post(server, "/api/member", {"relation": "나", "birth": 1978, "sex": "M"})
+    _post(server, "/api/note", {"relation": "나", "type": "checkup", "year": 2025,
+                                "metrics": {"체중": 80}})
+    r = _post(server, "/api/md/export", {"relation": "나"})
+    assert r["ok"] and len(r["files"]) >= 1
+    with urllib.request.urlopen(server + r["files"][0]["url"]) as resp:
+        assert "체중" in resp.read().decode("utf-8")
+
+
+def test_ocr_endpoint_guides_when_unavailable(server, tmp_path):
+    from health14 import ocr as ocr_mod
+    _post(server, "/api/vault/create", {"path": str(tmp_path / "ocr")})
+    if ocr_mod.tesseract_available():
+        import pytest
+        pytest.skip("tesseract 설치됨 — 미설치 안내 테스트는 해당 없음")
+    err = _post_expect_error(server, "/api/ocr", {"folder": str(tmp_path)}, 422)
+    assert "tesseract" in err["error"]
+
+
 def test_export_and_share_file_download(server, tmp_path):
     new_path = tmp_path / "v6"
     _post(server, "/api/vault/create", {"path": str(new_path)})
