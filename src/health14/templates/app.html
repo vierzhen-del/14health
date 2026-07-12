@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>14health</title>
+<style>
+:root{
+  --bg:#eef1f6; --card:#ffffff; --ink:#1d2733; --sub:#67748a;
+  --brand:#4a7bd0; --brand-deep:#3a5fa8;
+  --ok:#1a9e5c; --warn:#e8a13a; --danger:#d94f45; --watch:#7a6dd7;
+  --line:#e3e8f0;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",system-ui,sans-serif;
+  padding-bottom:76px; max-width:560px; margin:0 auto;
+}
+header{
+  background:linear-gradient(135deg,var(--brand),var(--brand-deep));
+  color:#fff; padding:18px 20px 16px; border-radius:0 0 20px 20px;
+  position:sticky; top:0; z-index:5;
+}
+header h1{font-size:19px;font-weight:800}
+header .meta{font-size:12px;opacity:.85;margin-top:3px}
+main{padding:14px}
+h2.section{font-size:17px;font-weight:800;margin:18px 4px 10px}
+.card{background:var(--card);border-radius:16px;padding:14px 16px;margin-bottom:12px;
+  box-shadow:0 1px 3px rgba(29,39,51,.08)}
+.member-card{cursor:pointer;transition:transform .08s}
+.member-card:active{transform:scale(.98)}
+.mc-head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.avatar{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-size:24px;background:#eaf0fb;flex:none}
+.mc-title{font-size:16px;font-weight:800}
+.mc-stage{font-size:12px;color:var(--sub)}
+.mc-overall{margin-left:auto;font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px}
+.metric-row{display:flex;align-items:baseline;gap:8px;padding:3px 0;font-size:14px}
+.metric-row .name{color:var(--sub);width:74px;flex:none;font-size:13px}
+.metric-row .val{font-weight:700}
+.metric-row .unit{font-size:11px;color:var(--sub)}
+.badge{margin-left:auto;font-size:12px;font-weight:700;padding:2px 9px;border-radius:999px}
+.b-정상{background:#e2f5ea;color:var(--ok)} .b-주의{background:#fdf1dd;color:#b57a17}
+.b-위험{background:#fbe4e2;color:var(--danger)} .b-관찰{background:#ece9fa;color:var(--watch)}
+.spark{margin-top:6px}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 10px}
+.chip{flex:none;padding:8px 16px;border-radius:999px;background:#fff;border:1.5px solid var(--line);
+  font-size:14px;font-weight:700;color:var(--sub);cursor:pointer}
+.chip.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.chart-card h3{font-size:14px;margin-bottom:4px}
+.chart-card .sub{font-size:12px;color:var(--sub)}
+.risk-item{display:flex;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}
+.risk-item:last-child{border-bottom:none}
+.risk-dot{width:10px;height:10px;border-radius:50%;flex:none}
+ul.plain{list-style:none}
+ul.plain li{padding:6px 0 6px 2px;font-size:14px;border-bottom:1px dashed var(--line)}
+ul.plain li:last-child{border-bottom:none}
+.q-block{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.q-block:last-child{border-bottom:none}
+.q-label{flex:none;width:38px;height:38px;border-radius:12px;background:#eaf0fb;color:var(--brand-deep);
+  display:flex;align-items:center;justify-content:center;font-weight:800}
+.q-items{font-size:14px;align-self:center}
+.q-items .none{color:var(--sub)}
+.opinion{background:#f0f5ff;border-radius:12px;padding:12px;font-size:13.5px;line-height:1.6;color:#2c3d5c}
+.lc-band{border-radius:14px;padding:12px 14px;margin-bottom:10px;position:relative}
+.lc-band h4{font-size:15px;font-weight:800;margin-bottom:6px}
+.lc-band ul{list-style:none;font-size:13px;line-height:1.7}
+.lc-me{display:inline-block;font-size:12px;font-weight:700;background:#fff;
+  border-radius:999px;padding:2px 10px;margin:4px 4px 0 0;box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.tabbar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:560px;
+  background:#fff;border-top:1px solid var(--line);display:flex;z-index:10}
+.tabbar button{flex:1;padding:9px 0 max(9px, env(safe-area-inset-bottom));background:none;border:none;
+  font-size:11px;color:var(--sub);cursor:pointer;font-weight:700}
+.tabbar button .ic{display:block;font-size:19px;margin-bottom:2px}
+.tabbar button.on{color:var(--brand)}
+.btn{display:block;width:100%;padding:12px;border:none;border-radius:12px;background:var(--brand);
+  color:#fff;font-size:15px;font-weight:800;cursor:pointer;margin-top:6px}
+.btn.ghost{background:#eaf0fb;color:var(--brand-deep)}
+.btn.sm{width:auto;padding:8px 14px;font-size:13px;display:inline-block}
+.footnote{font-size:11.5px;color:var(--sub);text-align:center;margin:16px 8px}
+.empty{color:var(--sub);font-size:14px;padding:8px 0}
+section.view{display:none} section.view.on{display:block}
+label{display:block;font-size:13px;color:var(--sub);font-weight:700;margin:10px 0 4px}
+input[type=text],input[type=number],input[type=date],select,textarea{
+  width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:14px;
+  background:#fbfcfe;color:var(--ink);font-family:inherit}
+textarea{resize:vertical;min-height:56px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field-row{display:flex;gap:8px;align-items:center;margin-top:6px}
+.field-row input{flex:1}
+.field-row .rm{flex:none;width:34px;height:34px;border:none;border-radius:8px;background:#fbe4e2;
+  color:var(--danger);font-weight:800;cursor:pointer}
+.settings-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;
+  border-bottom:1px solid var(--line);font-size:14px;gap:10px}
+.settings-row:last-child{border-bottom:none}
+.settings-row .val{color:var(--sub);font-size:12.5px;word-break:break-all;text-align:right}
+.toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#1d2733;color:#fff;
+  padding:10px 18px;border-radius:999px;font-size:13.5px;z-index:50;opacity:0;transition:opacity .2s;
+  pointer-events:none;max-width:90%;text-align:center}
+.toast.show{opacity:1}
+
+/* ---- 최초실행 setup 화면 ---- */
+#setup{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.setup-card{max-width:420px;width:100%}
+.setup-card .logo{font-size:44px;text-align:center;margin-bottom:6px}
+.setup-card h1{font-size:22px;font-weight:800;text-align:center;margin-bottom:6px}
+.setup-card p.desc{font-size:13.5px;color:var(--sub);text-align:center;margin-bottom:20px;line-height:1.6}
+.setup-divider{display:flex;align-items:center;gap:10px;margin:20px 0;color:var(--sub);font-size:12px}
+.setup-divider::before,.setup-divider::after{content:"";flex:1;height:1px;background:var(--line)}
+.priv-badges{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:16px}
+.priv-badges span{font-size:11px;background:#eaf0fb;color:var(--brand-deep);padding:4px 10px;border-radius:999px}
+</style>
+</head>
+<body>
+
+<div id="setup" style="display:none">
+  <div class="card setup-card">
+    <div class="logo">🏥</div>
+    <h1>14health 시작하기</h1>
+    <p class="desc">가족 건강기록을 내 컴퓨터의 옵시디안(Obsidian) Vault에만 저장하는
+      로컬 전용 도구입니다. 시작하려면 Vault를 만들어주세요.</p>
+
+    <label>Vault 경로</label>
+    <input type="text" id="new-path">
+    <button class="btn" onclick="createVault()">📁 옵시디안 Vault 만들기</button>
+
+    <div class="setup-divider">또는</div>
+
+    <label>기존 옵시디안 Vault 경로</label>
+    <input type="text" id="connect-path" placeholder="예: /Users/me/Documents/내건강볼트">
+    <button class="btn ghost" onclick="connectVault()">기존 Vault 연결하기</button>
+
+    <div class="priv-badges">
+      <span>🔒 로컬 전용</span><span>🚫 외부 전송 없음</span><span>👤 실명 저장 안 함</span>
+    </div>
+  </div>
+</div>
+
+<div id="app" style="display:none">
+<header>
+  <h1 id="hd-title">우리 가족 건강</h1>
+  <div class="meta" id="hd-meta"></div>
+</header>
+<main>
+  <section id="view-home" class="view on">
+    <h2 class="section">가족 건강 현황</h2>
+    <div id="home-cards"></div>
+  </section>
+
+  <section id="view-member" class="view">
+    <h2 class="section">구성원 상세</h2>
+    <div class="chips" id="member-chips"></div>
+    <div id="member-detail"></div>
+  </section>
+
+  <section id="view-input" class="view">
+    <h2 class="section">데이터 입력</h2>
+
+    <div class="card">
+      <h3 style="font-size:14px;margin-bottom:6px">👪 구성원 추가</h3>
+      <label>관계호칭</label>
+      <input type="text" id="in-member-relation" placeholder="예: 나, 부인, 아들, 딸, 어머니">
+      <div class="row2">
+        <div><label>출생연도</label><input type="number" id="in-member-birth" placeholder="1980"></div>
+        <div><label>성별</label>
+          <select id="in-member-sex"><option value="M">남</option><option value="F">여</option></select>
+        </div>
+      </div>
+      <button class="btn" onclick="submitMember()">구성원 등록</button>
+    </div>
+
+    <div class="card">
+      <h3 style="font-size:14px;margin-bottom:6px">📋 검진 수치 입력</h3>
+      <label>구성원</label><select id="ck-relation"></select>
+      <div class="row2">
+        <div><label>연도</label><input type="number" id="ck-year" placeholder="2025"></div>
+        <div><label>검진일 (선택)</label><input type="date" id="ck-date"></div>
+      </div>
+      <label>수치 항목</label>
+      <div id="ck-rows"></div>
+      <button type="button" class="btn ghost sm" onclick="addCheckupRow()">+ 항목 추가</button>
+      <label>메모 (선택)</label><textarea id="ck-memo"></textarea>
+      <button class="btn" onclick="submitCheckup()">검진 기록 저장</button>
+      <datalist id="metric-options">
+        <option value="혈압"><option value="공복혈당"><option value="식후혈당">
+        <option value="당화혈색소"><option value="체중"><option value="신장">
+        <option value="허리둘레"><option value="총콜레스테롤"><option value="LDL">
+        <option value="HDL"><option value="중성지방"><option value="AST"><option value="ALT">
+        <option value="감마GTP"><option value="크레아티닌"><option value="eGFR"><option value="혈색소">
+      </datalist>
+    </div>
+
+    <div class="card">
+      <h3 style="font-size:14px;margin-bottom:6px">🏥 진료 기록 입력</h3>
+      <label>구성원</label><select id="vs-relation"></select>
+      <div class="row2">
+        <div><label>진료일</label><input type="date" id="vs-date"></div>
+        <div><label>병원종류</label><input type="text" id="vs-hospital" placeholder="내과, 소아과 …"></div>
+      </div>
+      <label>증상 (쉼표로 구분)</label><input type="text" id="vs-symptoms" placeholder="기침, 발열">
+      <label>진단명 (선택)</label><input type="text" id="vs-diagnosis">
+      <label>처방약 (쉼표로 구분, 선택)</label><input type="text" id="vs-rx">
+      <label>메모 (선택)</label><textarea id="vs-memo"></textarea>
+      <button class="btn" onclick="submitVisit()">진료 기록 저장</button>
+    </div>
+
+    <div class="card">
+      <h3 style="font-size:14px;margin-bottom:6px">🧬 가족력 입력</h3>
+      <label>관계 (부/모/조부 등)</label><input type="text" id="fh-relation" placeholder="부">
+      <label>질환명</label><input type="text" id="fh-disease" placeholder="고혈압">
+      <label>비고 (선택)</label><input type="text" id="fh-note">
+      <button class="btn" onclick="submitHistory()">가족력 추가</button>
+    </div>
+  </section>
+
+  <section id="view-plan" class="view">
+    <h2 class="section" id="plan-title">연도별 건강 일정</h2>
+    <div class="chips" id="plan-chips"></div>
+    <div id="plan-detail"></div>
+    <h2 class="section">생애주기 건강검진 일정</h2>
+    <div id="lifecycle"></div>
+  </section>
+
+  <section id="view-settings" class="view">
+    <h2 class="section">설정</h2>
+    <div class="card">
+      <div class="settings-row"><span>현재 Vault</span><span class="val" id="set-vault-path">-</span></div>
+      <div class="settings-row"><span>구성원 수</span><span class="val" id="set-member-count">-</span></div>
+    </div>
+
+    <div class="card">
+      <h3 style="font-size:14px;margin-bottom:6px">📤 내보내기 / 대시보드</h3>
+      <button class="btn ghost" onclick="doExport()">Vault 전체 내보내기 (zip)</button>
+      <button class="btn ghost" onclick="doDashboardExport()">정적 대시보드 HTML 생성</button>
+      <div id="export-links" style="margin-top:8px;font-size:13px"></div>
+    </div>
+
+    <div class="card">
+      <h3 style="font-size:14px;margin-bottom:6px">📥 가져오기 (기기변경)</h3>
+      <label>zip 파일 경로</label><input type="text" id="im-zip" placeholder="/path/to/14health-vault-....zip">
+      <label>새 Vault 경로</label><input type="text" id="im-vault">
+      <label style="display:flex;align-items:center;gap:6px;font-weight:400">
+        <input type="checkbox" id="im-overwrite" style="width:auto"> 기존 파일 덮어쓰기
+      </label>
+      <button class="btn ghost" onclick="doImport()">가져오기 실행</button>
+    </div>
+
+    <div class="card">
+      <h3 style="font-size:14px;margin-bottom:6px">🔗 다른 Vault 연결</h3>
+      <input type="text" id="set-connect-path" placeholder="다른 옵시디안 Vault 경로">
+      <button class="btn ghost" onclick="connectVault(true)">연결하기</button>
+    </div>
+
+    <div class="card">
+      <h3 style="font-size:14px;margin-bottom:6px">🗒️ 노션 이력 동기화</h3>
+      <p style="font-size:13px;color:var(--sub);line-height:1.6">
+        노션에는 날짜·대상·작업유형·제목(마스킹)·옵시디안 링크만 올라갑니다.
+        수치·실명은 절대 전송되지 않습니다. Claude Code의 <code>/vault관리</code> 스킬
+        또는 <code>14health config set notion_token …</code> 후
+        <code>14health log --sync-notion</code> 으로 동기화하세요.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3 style="font-size:14px;margin-bottom:6px">🕘 최근 이력</h3>
+      <ul class="plain" id="set-log"></ul>
+    </div>
+  </section>
+
+  <div class="footnote">
+    이 앱은 로컬(127.0.0.1)에서만 동작하며 어떤 데이터도 외부로 전송하지 않습니다.<br>
+    규칙 기반 참고 정보이며 의학적 진단이 아닙니다 — 이상 소견은 의료진과 상담하세요.
+  </div>
+</main>
+
+<nav class="tabbar">
+  <button data-tab="home" class="on"><span class="ic">🏠</span>홈</button>
+  <button data-tab="member"><span class="ic">👨‍👩‍👧‍👦</span>가족</button>
+  <button data-tab="input"><span class="ic">✍️</span>입력</button>
+  <button data-tab="plan"><span class="ic">📅</span>일정</button>
+  <button data-tab="settings"><span class="ic">⚙️</span>설정</button>
+</nav>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let DATA = null;
+let STATE = { tab: "home", member: null };
+const S_COLOR = {"정상":"var(--ok)","주의":"var(--warn)","위험":"var(--danger)","관찰":"var(--watch)"};
+const AVATAR = {"나":"🧑","부인":"👩","남편":"👨","아들":"👦","딸":"👧",
+  "아버지":"👴","어머니":"👵","할아버지":"👴","할머니":"👵"};
+
+function esc(s){return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function fmt(v){return v==null?"-":(Math.round(v*10)/10);}
+function member(rel){return (DATA?.members||[]).find(m=>m.relation===rel);}
+function overall(m){
+  const order={"정상":0,"관찰":1,"주의":2,"위험":3};
+  let worst="정상";
+  for(const r of m.risks||[]) if(order[r.status]>order[worst]) worst=r.status;
+  return worst;
+}
+function toast(msg){
+  const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show");
+  clearTimeout(toast._h); toast._h=setTimeout(()=>t.classList.remove("show"),2400);
+}
+
+async function getJSON(url){
+  const r = await fetch(url);
+  const j = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(j.error || (r.status+" 오류"));
+  return j;
+}
+async function postJSON(url, body){
+  const r = await fetch(url, {method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify(body||{})});
+  const j = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(j.error || (r.status+" 오류"));
+  return j;
+}
+
+/* ---------- 부팅: 최초실행 판단 ---------- */
+async function boot(){
+  let state;
+  try{ state = await getJSON("/api/state"); }
+  catch(e){ toast("서버 연결 실패: "+e.message); return; }
+  if(!state.hasVault){
+    document.getElementById("setup").style.display="flex";
+    document.getElementById("app").style.display="none";
+    document.getElementById("new-path").value = state.suggestedPath;
+    return;
+  }
+  document.getElementById("setup").style.display="none";
+  document.getElementById("app").style.display="block";
+  await loadData();
+}
+
+async function createVault(){
+  const path = document.getElementById("new-path").value.trim();
+  if(!path) return toast("경로를 입력하세요.");
+  try{
+    await postJSON("/api/vault/create", {path});
+    document.getElementById("setup").style.display="none";
+    document.getElementById("app").style.display="block";
+    toast("Vault가 생성되었습니다 🎉");
+    await loadData();
+  }catch(e){ toast(e.message); }
+}
+async function connectVault(fromSettings){
+  const id = fromSettings ? "set-connect-path" : "connect-path";
+  const path = document.getElementById(id).value.trim();
+  if(!path) return toast("경로를 입력하세요.");
+  try{
+    await postJSON("/api/vault/connect", {path});
+    document.getElementById("setup").style.display="none";
+    document.getElementById("app").style.display="block";
+    toast("Vault에 연결되었습니다.");
+    setTab("home"); await loadData();
+  }catch(e){ toast(e.message); }
+}
+
+async function loadData(){
+  try{
+    DATA = await getJSON("/api/data");
+  }catch(e){ toast(e.message); return; }
+  if(!STATE.member && DATA.members.length) STATE.member = DATA.members[0].relation;
+  populateRelationSelects();
+  render();
+}
+
+function populateRelationSelects(){
+  const relations = (DATA.members||[]).map(m=>m.relation);
+  for(const id of ["ck-relation","vs-relation"]){
+    const el = document.getElementById(id);
+    const current = el.value;
+    el.innerHTML = relations.length
+      ? relations.map(r=>`<option value="${esc(r)}">${esc(r)}</option>`).join("")
+      : `<option value="">먼저 구성원을 등록하세요</option>`;
+    if(relations.includes(current)) el.value = current;
+  }
+}
+
+/* ---------- SVG 차트 (dashboard.html과 동일 로직) ---------- */
+function sparkline(points, color, w=180, h=36){
+  if(!points||points.length<2) return "";
+  const xs=points.map(p=>p.year), ys=points.map(p=>p.value);
+  const x0=Math.min(...xs), x1=Math.max(...xs), y0=Math.min(...ys), y1=Math.max(...ys);
+  const px=v=>4+(w-8)*(x1===x0?0.5:(v-x0)/(x1-x0));
+  const py=v=>h-5-(h-10)*(y1===y0?0.5:(v-y0)/(y1-y0));
+  const pts=points.map(p=>`${px(p.year).toFixed(1)},${py(p.value).toFixed(1)}`).join(" ");
+  return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+    <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2.2"
+      stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="${px(xs[xs.length-1])}" cy="${py(ys[ys.length-1])}" r="3" fill="${color}"/></svg>`;
+}
+function lineChart(metric, points, sex){
+  const w=300,h=140,padL=34,padB=20,padT=12,padR=10;
+  const xs=points.map(p=>p.year), ys=points.map(p=>p.value);
+  const bands=(DATA.ranges[metric==="허리둘레"?(sex==="F"?"허리둘레여":"허리둘레남"):metric]||{}).bands;
+  let yMin=Math.min(...ys), yMax=Math.max(...ys);
+  if(bands) for(const b of bands) if(b.up_to!=null){yMin=Math.min(yMin,b.up_to);yMax=Math.max(yMax,b.up_to);}
+  const pad=(yMax-yMin)*0.15||5; yMin-=pad; yMax+=pad;
+  const x0=Math.min(...xs), x1=Math.max(...xs);
+  const px=v=>padL+(w-padL-padR)*(x1===x0?0.5:(v-x0)/(x1-x0));
+  const py=v=>h-padB-(h-padT-padB)*((v-yMin)/(yMax-yMin));
+  let g="";
+  if(bands){
+    for(const b of bands) if(b.up_to!=null && b.up_to>yMin && b.up_to<yMax){
+      const y=py(b.up_to);
+      g+=`<line x1="${padL}" y1="${y}" x2="${w-padR}" y2="${y}" stroke="#d9b26a" stroke-dasharray="4 3" stroke-width="1"/>
+          <text x="${w-padR}" y="${y-3}" font-size="9" fill="#b08a3e" text-anchor="end">${b.up_to}</text>`;
+    }
+  }
+  const pts=points.map(p=>`${px(p.year).toFixed(1)},${py(p.value).toFixed(1)}`).join(" ");
+  const dots=points.map(p=>`<circle cx="${px(p.year)}" cy="${py(p.value)}" r="3.2" fill="var(--brand)"/>
+    <text x="${px(p.year)}" y="${py(p.value)-7}" font-size="9.5" font-weight="700" fill="#33405a" text-anchor="middle">${fmt(p.value)}</text>`).join("");
+  const xlabels=[...new Set(xs)].map(x=>`<text x="${px(x)}" y="${h-5}" font-size="9.5" fill="#67748a" text-anchor="middle">${x}</text>`).join("");
+  return `<svg width="100%" viewBox="0 0 ${w} ${h}">
+    <line x1="${padL}" y1="${h-padB}" x2="${w-padR}" y2="${h-padB}" stroke="#dfe5ee"/>
+    ${g}<polyline points="${pts}" fill="none" stroke="var(--brand)" stroke-width="2.4"
+      stroke-linecap="round" stroke-linejoin="round"/>${dots}${xlabels}</svg>`;
+}
+
+/* ---------- 홈 ---------- */
+function badge(st){return st?`<span class="badge b-${st}">${st}</span>`:"";}
+function homeCards(){
+  const el=document.getElementById("home-cards");
+  if(!DATA || !DATA.members.length){
+    el.innerHTML=`<div class="card empty">구성원이 없습니다. "입력" 탭에서 먼저 구성원을 등록하세요.</div>`;
+    return;
+  }
+  el.innerHTML=DATA.members.map(m=>{
+    const ov=overall(m);
+    const bp=(m.latest["수축기혈압"]&&m.latest["이완기혈압"])
+      ?`${fmt(m.latest["수축기혈압"].value)}/${fmt(m.latest["이완기혈압"].value)}`:null;
+    const bpSt=m.latest["수축기혈압"]?.status;
+    const glu=m.latest["공복혈당"]||m.latest["식후혈당"];
+    const gluName=m.latest["공복혈당"]?"공복혈당":"식후혈당";
+    const w=m.latest["체중"], bmi=m.latest["BMI"];
+    const series=m.series["체중"]||m.series["BMI"]||[];
+    const rows=[
+      bp?`<div class="metric-row"><span class="name">혈압</span><span class="val">${bp}</span><span class="unit">mmHg</span>${badge(bpSt)}</div>`:"",
+      glu?`<div class="metric-row"><span class="name">${gluName}</span><span class="val">${fmt(glu.value)}</span><span class="unit">mg/dL</span>${badge(glu.status)}</div>`:"",
+      bmi?`<div class="metric-row"><span class="name">BMI</span><span class="val">${fmt(bmi.value)}</span>${badge(bmi.status)}</div>`:"",
+      w?`<div class="metric-row"><span class="name">체중</span><span class="val">${fmt(w.value)}</span><span class="unit">kg</span></div>`:"",
+    ].join("");
+    return `<div class="card member-card" onclick="selectMember('${esc(m.relation)}')">
+      <div class="mc-head">
+        <div class="avatar">${AVATAR[m.relation]||"🙂"}</div>
+        <div><div class="mc-title">${esc(m.relation)} (${m.age}세)</div>
+        <div class="mc-stage">${esc(m.stage)}</div></div>
+        <span class="mc-overall b-${ov}">${ov==="정상"?"정상":ov+" 필요"}</span>
+      </div>
+      ${rows||'<div class="empty">검진 수치가 아직 없습니다.</div>'}
+      ${sparkline(series, S_COLOR[ov])}
+    </div>`;
+  }).join("");
+}
+
+/* ---------- 가족 ---------- */
+function chips(containerId){
+  document.getElementById(containerId).innerHTML=(DATA.members||[]).map(m=>
+    `<div class="chip ${m.relation===STATE.member?"on":""}" onclick="setMember('${esc(m.relation)}')">${AVATAR[m.relation]||"🙂"} ${esc(m.relation)}</div>`).join("");
+}
+function memberDetail(){
+  chips("member-chips");
+  const m=member(STATE.member);
+  const el=document.getElementById("member-detail");
+  if(!m){el.innerHTML=`<div class="card empty">구성원을 먼저 등록하세요.</div>`;return;}
+  const charts=Object.keys(m.series).filter(k=>m.series[k].length>=2)
+    .concat(Object.keys(m.series).filter(k=>m.series[k].length===1)).slice(0,8)
+    .map(k=>{
+      const info=m.latest[k]||{};
+      return `<div class="card chart-card"><h3>${esc(k)} ${badge(info.status)}</h3>
+      <div class="sub">최근 ${fmt(info.value)} ${esc(info.unit||"")} (${info.year||"-"})</div>
+      ${m.series[k].length>=2?lineChart(k,m.series[k],m.sex):""}</div>`;
+    }).join("");
+  const risks=(m.risks||[]).map(r=>`<div class="risk-item">
+      <span class="risk-dot" style="background:${S_COLOR[r.status]}"></span>
+      <span><b>${esc(r.metric)}</b> ${r.value!=null?fmt(r.value)+" "+esc(r.unit):""}
+      — ${esc(r.label)}${r.trend?` · ${esc(r.trend)} 추세`:""}${r.family_history?" · 가족력":""}</span>
+      ${badge(r.status)}</div>`).join("");
+  const recs=(m.recommendations||[]).map(r=>
+    `<li>${r.family_history?"⭐ ":""}${esc(r.name)} — ${r.interval_years}년 주기</li>`).join("");
+  const life=[...(m.lifestyle.risk||[]).map(a=>`<li>💡 ${esc(a)}</li>`),
+              ...(m.lifestyle.age_band||[]).map(a=>`<li>${esc(a)}</li>`)].join("");
+  const depts=(m.departments||[]).map(d=>
+    `<li><b>${esc(d.dept)}</b> — ${esc(d.cadence)} <span class="badge b-${d.status}">${d.status}</span></li>`).join("");
+  el.innerHTML=`
+    <div class="card"><div class="mc-head">
+      <div class="avatar">${AVATAR[m.relation]||"🙂"}</div>
+      <div><div class="mc-title">${esc(m.relation)} (${m.age}세 · ${m.sex==="F"?"여":"남"})</div>
+      <div class="mc-stage">${esc(m.stage)} · ${m.birth_year}년생</div></div></div>
+      <div class="opinion">${esc(m.opinion)}</div>
+      <button class="btn ghost" onclick="runAnalyze('${esc(m.relation)}')">🔍 위험도 분석 다시 실행</button></div>
+    <div class="card"><h3 style="font-size:14px;margin-bottom:6px">주요 질병 위험도</h3>
+      ${risks||'<div class="empty">위험 요인이 없습니다 👍</div>'}</div>
+    ${charts}
+    <div class="card"><h3 style="font-size:14px;margin-bottom:6px">추천 검진 항목</h3>
+      <ul class="plain">${recs||'<li class="empty">해당 없음</li>'}</ul></div>
+    ${depts?`<div class="card"><h3 style="font-size:14px;margin-bottom:6px">추천 병원·진료 주기</h3><ul class="plain">${depts}</ul></div>`:""}
+    <div class="card"><h3 style="font-size:14px;margin-bottom:6px">생활습관 권고</h3>
+      <ul class="plain">${life}</ul></div>
+    <div id="share-result"></div>
+    <button class="btn" onclick="doShare('${esc(m.relation)}')">📤 카톡 공유용 이미지 생성</button>`;
+}
+async function runAnalyze(relation){
+  try{ const r = await postJSON("/api/analyze", {relation}); toast("분석 완료"); await loadData(); memberDetail(); }
+  catch(e){ toast(e.message); }
+}
+async function doShare(relation){
+  try{
+    const r = await postJSON("/api/share", {relation});
+    toast("공유 이미지 생성 완료");
+    document.getElementById("share-result").innerHTML =
+      `<div class="card"><img src="${r.url}" style="width:100%;border-radius:12px" alt="공유 이미지"></div>`;
+  }catch(e){ toast(e.message); }
+}
+
+/* ---------- 일정 ---------- */
+function planDetail(){
+  chips("plan-chips");
+  const m=member(STATE.member);
+  const el=document.getElementById("plan-detail");
+  document.getElementById("plan-title").textContent=(m?m.relation+" ":"")+"연도별 건강 일정";
+  if(!m){el.innerHTML=`<div class="card empty">구성원을 먼저 등록하세요.</div>`;return;}
+  const qs=["Q1","Q2","Q3","Q4"].map(q=>{
+    const items=(m.quarters[q]||[]);
+    return `<div class="q-block"><div class="q-label">${q}</div>
+      <div class="q-items">${items.length?items.map(esc).join("<br>"):'<span class="none">예정 없음</span>'}</div></div>`;
+  }).join("");
+  el.innerHTML=`<div class="card">
+    <h3 style="font-size:14px;margin-bottom:6px">${esc(m.relation)}의 향후 1년 검진 계획</h3>${qs}
+    <div style="height:10px"></div>
+    <div class="opinion"><b>소견</b> · ${esc(m.opinion)}</div></div>`;
+}
+function lifecycle(){
+  document.getElementById("lifecycle").innerHTML=(DATA.lifecycle||[]).map(s=>{
+    const mem=(DATA.members||[]).filter(m=>m.age>=s.age_min&&m.age<=s.age_max)
+      .map(m=>`<span class="lc-me">${AVATAR[m.relation]||"🙂"} ${esc(m.relation)} ${m.age}세</span>`).join("");
+    const range=s.age_max>=120?`${s.age_min}세 이상`:`${s.age_min}~${s.age_max}세`;
+    return `<div class="lc-band" style="background:${s.color}22;border-left:5px solid ${s.color}">
+      <h4 style="color:${s.color}">● ${esc(s.stage)} (${range})</h4>
+      <ul>${s.items.map(i=>`<li>· ${esc(i)}</li>`).join("")}</ul>${mem}</div>`;
+  }).join("");
+}
+
+/* ---------- 입력 ---------- */
+function addCheckupRow(name, value){
+  const wrap=document.createElement("div");
+  wrap.className="field-row";
+  wrap.innerHTML=`<input type="text" list="metric-options" placeholder="항목 (예: 체중)" value="${esc(name||"")}">
+    <input type="text" placeholder="수치 (예: 72, 혈압은 120/80)" value="${esc(value||"")}">
+    <button type="button" class="rm" onclick="this.parentElement.remove()">×</button>`;
+  document.getElementById("ck-rows").appendChild(wrap);
+}
+addCheckupRow(); addCheckupRow();
+
+async function submitMember(){
+  const relation = document.getElementById("in-member-relation").value.trim();
+  const birth = document.getElementById("in-member-birth").value;
+  const sex = document.getElementById("in-member-sex").value;
+  if(!relation || !birth) return toast("관계호칭과 출생연도를 입력하세요.");
+  try{
+    await postJSON("/api/member", {relation, birth: Number(birth), sex});
+    toast(`${relation} 등록 완료`);
+    document.getElementById("in-member-relation").value="";
+    document.getElementById("in-member-birth").value="";
+    await loadData();
+  }catch(e){ toast(e.message); }
+}
+
+async function submitCheckup(){
+  const relation = document.getElementById("ck-relation").value;
+  const year = document.getElementById("ck-year").value;
+  const date = document.getElementById("ck-date").value;
+  if(!relation) return toast("구성원을 먼저 등록하세요.");
+  if(!year) return toast("연도를 입력하세요.");
+  const metrics={};
+  document.querySelectorAll("#ck-rows .field-row").forEach(row=>{
+    const [k,v] = row.querySelectorAll("input");
+    if(k.value.trim()) metrics[k.value.trim()] = v.value.trim();
+  });
+  try{
+    await postJSON("/api/note", {relation, type:"checkup", year:Number(year),
+      date: date||undefined, metrics, memo: document.getElementById("ck-memo").value});
+    toast("검진 기록 저장 완료");
+    document.getElementById("ck-rows").innerHTML=""; addCheckupRow(); addCheckupRow();
+    document.getElementById("ck-memo").value="";
+    await loadData();
+  }catch(e){ toast(e.message); }
+}
+
+async function submitVisit(){
+  const relation = document.getElementById("vs-relation").value;
+  const date = document.getElementById("vs-date").value;
+  const hospital = document.getElementById("vs-hospital").value.trim();
+  if(!relation) return toast("구성원을 먼저 등록하세요.");
+  if(!date || !hospital) return toast("진료일과 병원종류를 입력하세요.");
+  const symptoms = document.getElementById("vs-symptoms").value.split(",").map(s=>s.trim()).filter(Boolean);
+  const medications = document.getElementById("vs-rx").value.split(",").map(s=>s.trim()).filter(Boolean);
+  try{
+    await postJSON("/api/note", {relation, type:"visit", date, hospital, symptoms,
+      diagnosis: document.getElementById("vs-diagnosis").value, medications,
+      memo: document.getElementById("vs-memo").value});
+    toast("진료 기록 저장 완료");
+    ["vs-hospital","vs-symptoms","vs-diagnosis","vs-rx","vs-memo"].forEach(id=>document.getElementById(id).value="");
+    await loadData();
+  }catch(e){ toast(e.message); }
+}
+
+async function submitHistory(){
+  const relation = document.getElementById("fh-relation").value.trim();
+  const disease = document.getElementById("fh-disease").value.trim();
+  if(!relation || !disease) return toast("관계와 질환명을 입력하세요.");
+  try{
+    await postJSON("/api/history", {relation, disease, note: document.getElementById("fh-note").value});
+    toast("가족력 추가 완료");
+    ["fh-relation","fh-disease","fh-note"].forEach(id=>document.getElementById(id).value="");
+    await loadData();
+  }catch(e){ toast(e.message); }
+}
+
+/* ---------- 설정 ---------- */
+function settingsView(){
+  document.getElementById("set-vault-path").textContent = DATA?.vaultPath || "-";
+  document.getElementById("set-member-count").textContent = (DATA?.members||[]).length + "명";
+  document.getElementById("set-log").innerHTML = (DATA?.log||[]).map(e=>
+    `<li>${esc(e.date)} · [${esc(e.action)}] ${esc(e.target)} — ${esc(e.title)}</li>`).join("")
+    || `<li class="empty">이력 없음</li>`;
+}
+async function doExport(){
+  try{
+    const r = await postJSON("/api/export");
+    document.getElementById("export-links").innerHTML =
+      `<a class="btn ghost sm" href="${r.url}" download>⬇ zip 다운로드</a>`;
+    toast("내보내기 완료");
+  }catch(e){ toast(e.message); }
+}
+async function doDashboardExport(){
+  try{
+    const r = await postJSON("/api/dashboard/export");
+    document.getElementById("export-links").innerHTML =
+      `<a class="btn ghost sm" href="${r.url}" target="_blank">🌐 대시보드 열기</a>`;
+    toast("대시보드 HTML 생성 완료");
+  }catch(e){ toast(e.message); }
+}
+async function doImport(){
+  const zipPath = document.getElementById("im-zip").value.trim();
+  const vaultPath = document.getElementById("im-vault").value.trim();
+  const overwrite = document.getElementById("im-overwrite").checked;
+  if(!zipPath || !vaultPath) return toast("zip 경로와 새 Vault 경로를 입력하세요.");
+  try{
+    await postJSON("/api/import", {zipPath, vaultPath, overwrite});
+    toast("가져오기 완료 — Vault가 전환되었습니다.");
+    await loadData();
+  }catch(e){ toast(e.message); }
+}
+
+/* ---------- 내비게이션 ---------- */
+function setTab(tab){
+  STATE.tab=tab;
+  document.querySelectorAll(".tabbar button").forEach(b=>b.classList.toggle("on",b.dataset.tab===tab));
+  document.querySelectorAll("section.view").forEach(v=>v.classList.remove("on"));
+  document.getElementById("view-"+tab).classList.add("on");
+  render();
+}
+function setMember(rel){STATE.member=rel;render();}
+function selectMember(rel){STATE.member=rel;setTab("member");}
+document.querySelectorAll(".tabbar button").forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
+
+function render(){
+  if(!DATA) return;
+  document.getElementById("hd-meta").textContent=
+    `생성일 ${DATA.generated} · 구성원 ${DATA.members.length}명 · 로컬 전용`;
+  homeCards(); memberDetail(); planDetail(); lifecycle(); settingsView();
+}
+boot();
+</script>
+</body>
+</html>

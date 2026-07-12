@@ -24,6 +24,7 @@ CLI는 `pip install -e .` 후 `14health` 명령으로 사용한다.
 ## 주요 CLI
 
 ```bash
+14health app                                 # 로컬 웹앱 GUI (최초실행 시 Vault 생성 화면)
 14health init --vault <경로>                 # vault 생성·경로 등록
 14health member add <관계호칭> --birth 1980 --sex M
 14health checkup add <관계호칭> --year 2025 --field 혈압=120/80 --field 체중=72

@@ -59,6 +59,11 @@ def get_vault_path(required: bool = True) -> Optional[Path]:
     return Path(vault).expanduser()
 
 
+def suggested_vault_path() -> str:
+    """앱 최초화면에 프리필할 기본 vault 경로 제안."""
+    return str(Path.home() / "Documents" / "14health-vault")
+
+
 def set_vault_path(path: Path) -> None:
     cfg = load_config()
     cfg["vault"] = str(Path(path).expanduser().resolve())

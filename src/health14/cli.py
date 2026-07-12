@@ -11,8 +11,8 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
-from health14 import (analysis, anonymize, config, dashboard, export,
-                      notion_log, ocr, share, vault)
+from health14 import (analysis, anonymize, config, dashboard, export, intake,
+                      notion_log, ocr, share, vault, webapp)
 
 
 def _vault() -> Path:
@@ -141,25 +141,9 @@ def cmd_note(args) -> int:
     data = json.loads(Path(args.json).read_text(encoding="utf-8"))
     note_type = data.get("type")
     if note_type == "checkup":
-        metrics = data.get("metrics") or {}
-        if "혈압" in metrics and isinstance(metrics["혈압"], str) and "/" in metrics["혈압"]:
-            s, _, dia = metrics.pop("혈압").partition("/")
-            metrics["수축기혈압"] = _parse_value(s)
-            metrics["이완기혈압"] = _parse_value(dia)
-        path = vault.add_checkup(
-            v, args.relation, int(data["year"]), metrics,
-            anonymize.anonymize(data.get("memo", "")), data.get("date"))
-        vault.log_action(v, args.relation, "검진입력",
-                         f"{data['year']} 건강검진 입력", path)
+        path = intake.apply_checkup(v, args.relation, data)
     elif note_type == "visit":
-        path = vault.add_visit(
-            v, args.relation, data["date"], data.get("hospital", "진료"),
-            [anonymize.anonymize(s) for s in data.get("symptoms", [])],
-            anonymize.anonymize(data.get("diagnosis", "")),
-            [anonymize.anonymize(m) for m in data.get("medications", [])],
-            anonymize.anonymize(data.get("memo", "")))
-        vault.log_action(v, args.relation, "진료입력",
-                         f"{data.get('hospital', '진료')} 진료 기록", path)
+        path = intake.apply_visit(v, args.relation, data)
     else:
         raise SystemExit(f"지원하지 않는 type: {note_type} (checkup | visit)")
     print(f"노트 저장: {path}")
@@ -224,6 +208,11 @@ def cmd_ocr(args) -> int:
         print(anonymize.anonymize(r["text"]))
         print()
     print("※ 추출 텍스트를 확인 후 14health checkup add / visit add 로 저장하세요.")
+    return 0
+
+
+def cmd_app(args) -> int:
+    webapp.run(port=args.port, open_browser=not args.no_browser)
     return 0
 
 
@@ -338,6 +327,11 @@ def build_parser() -> argparse.ArgumentParser:
     sp = sub.add_parser("ocr", help="이미지 텍스트 추출 (tesseract 필요, 로컬 처리)")
     sp.add_argument("target", help="이미지 파일 또는 폴더")
     sp.set_defaults(func=cmd_ocr)
+
+    sp = sub.add_parser("app", help="로컬 웹앱 실행 (브라우저 GUI, 외부 접속 불가)")
+    sp.add_argument("--port", type=int, default=8420)
+    sp.add_argument("--no-browser", action="store_true", help="브라우저 자동 오픈 안 함")
+    sp.set_defaults(func=cmd_app)
 
     sp = sub.add_parser("log", help="작업 이력 조회 / 노션 동기화")
     sp.add_argument("--sync-notion", action="store_true",
