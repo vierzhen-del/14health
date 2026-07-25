@@ -17,6 +17,16 @@ CLI는 `pip install -e .` 후 `14health` 명령으로 사용한다.
 ※ Gemini로 이미지를 분석하면 이미지가 Google 서버로 전송된다. 민감한 결과지는
 사용자에게 이 점을 먼저 알리고 진행 여부를 확인한다.
 
+## 지침을 따르는 방식 (2026-07-25)
+
+`CLAUDE.md` 는 Claude Opus 5 / Fable 5 세대를 기준으로 "함정만 남기고 절차는 스킬로 분리"돼 있다.
+**Gemini를 포함한 타사 모델은 그 완화 대상이 아니다** — 작업 전에 해당 절차 문서
+(`.claude/skills/<이름>/SKILL.md`, 이 저장소에서는 `.gemini/commands/*.toml` 이 `@`로 물고 있다)를
+**먼저 열어 단계대로 수행하고, 판단으로 단계를 건너뛰지 않는다.**
+
+배경: [Anthropic — Claude 5 세대 컨텍스트 엔지니어링](https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models)
+(원본 규칙은 second-brain 볼트 `14rae_work/00_지침/2026-07-25_모델별-운영규칙.md`)
+
 ## 커스텀 명령
 
 `.gemini/commands/` 에 정의됨: `/건강입력` `/검진분석` `/위험분석` `/대시보드` `/vault관리`
