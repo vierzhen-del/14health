@@ -22,8 +22,8 @@ from typing import Any, Dict, Optional
 from urllib.parse import parse_qs, quote, urlparse
 
 from health14 import (analysis, anonymize, calendar_index, config, dashboard,
-                      export, family_io, insurance, intake, md_io, ocr, parse,
-                      relations, share, vault)
+                      export, family_io, insurance, intake, md_io, ocr, official,
+                      parse, relations, share, vault)
 
 
 # --lan 으로 실행할 때만 설정된다. None이면 토큰 검사를 하지 않는다(로컬 전용 모드).
@@ -224,6 +224,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._handle_parse_text(data)
             elif path == "/api/ocr":
                 self._handle_ocr(data)
+            elif path == "/api/official/parse":
+                self._handle_official_parse(data)
             elif path == "/api/md/parse":
                 self._handle_md_parse(data)
             elif path == "/api/md/import":
@@ -479,6 +481,40 @@ class Handler(BaseHTTPRequestHandler):
                         "docType": doc["doc_type"], "parsed": data,
                         "matchedMember": match["relation"],
                         "matchedBy": match["matched_by"]})
+        self._send_json({"results": out})
+
+    def _handle_official_parse(self, data: Dict[str, Any]) -> None:
+        """공단·심평원 공식 파일 파싱 미리보기 (저장은 /api/note 로 확정).
+
+        경로만 받고 파일은 로컬에서 읽는다. 인증정보는 앱을 거치지 않는다.
+        """
+        v = self._require_vault()
+        if not v:
+            return
+        raw_path = (data.get("path") or "").strip()
+        if not raw_path:
+            return self._error("파일 경로를 입력하세요.")
+        target = Path(raw_path).expanduser()
+        if not target.exists():
+            return self._error(f"파일이 없습니다: {target}")
+
+        aliases = config.get_aliases()
+        known = [m["relation"] for m in vault.load_members(v)]
+        out = []
+        for r in official.parse_path(target):
+            raw = r.pop("text", "")
+            match = parse.match_member(raw, aliases, known)
+            item = dict(r)
+            item["parsed"] = r["data"]
+            if match["relation"] and not item["parsed"].get("relation"):
+                item["parsed"]["relation"] = match["relation"]
+            item["matchedMember"] = match["relation"]
+            item["matchedBy"] = match["matched_by"]
+            item["text"] = anonymize.anonymize(raw)[:1500]
+            item["docType"] = r["doc_type"]
+            item.pop("data", None)
+            item.pop("doc_type", None)
+            out.append(item)
         self._send_json({"results": out})
 
     def _handle_md_parse(self, data: Dict[str, Any]) -> None:

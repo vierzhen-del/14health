@@ -377,3 +377,32 @@ def test_note_write_is_atomic(vault_path):
     v.add_checkup(vault_path, "나", 2025, {"체중": 80})
     leftovers = [p for p in vault_path.rglob(".*.tmp")]
     assert leftovers == [], f"임시파일 잔존: {leftovers}"
+
+
+def test_official_parse_endpoint(server, tmp_path):
+    """공식 파일 경로를 주면 파싱 결과와 자동매칭을 돌려준다."""
+    from health14 import config as config_mod
+    _post(server, "/api/vault/create", {"path": str(tmp_path / "official")})
+    _post(server, "/api/member", {"relation": "나", "birth": 1978, "sex": "M"})
+    config_mod.add_alias("홍길동", "나")
+
+    f = tmp_path / "통보서.txt"
+    f.write_text("국민건강보험공단\n일반건강검진 결과 통보서\n"
+                 "성명: 홍길동   검진일자: 2026-04-11\n"
+                 "  체중                 79.5   kg\n"
+                 "  공복혈당             118\n", encoding="utf-8")
+
+    r = _post(server, "/api/official/parse", {"path": str(f)})
+    item = r["results"][0]
+    assert item["docType"] == "official_checkup"
+    assert item["kind"] == "checkup"
+    assert item["matchedMember"] == "나"
+    assert item["parsed"]["metrics"]["체중"] == 79.5
+    assert "홍길동" not in item["text"]        # 미리보기 텍스트도 익명화됨
+
+
+def test_official_parse_missing_file(server, tmp_path):
+    _post(server, "/api/vault/create", {"path": str(tmp_path / "official2")})
+    err = _post_expect_error(server, "/api/official/parse",
+                             {"path": str(tmp_path / "없는파일.pdf")}, 400)
+    assert "파일이 없습니다" in err["error"]

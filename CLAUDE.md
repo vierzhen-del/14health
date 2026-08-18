@@ -51,5 +51,9 @@ CLI는 `pip install -e .` 후 `14health` 명령으로 사용한다.
   파싱 캐시 무효화가 여기 묶여 있다. `path.write_text()` 직접 호출 금지.
 - `vault.read_note()` 는 mtime/size 기반 캐시를 쓴다(노트 2,400개에서 1.7초 → 67ms).
   결과는 복사본이므로 자유롭게 변형해도 된다.
+- **외부 API로 나가는 값은 지역·진료과뿐**: `hira.ALLOWED_PARAMS` 밖의 키는 버려진다.
+  건강정보를 쿼리에 넣는 코드를 추가하지 말 것.
+- **MCP 도구 오류는 `except (Exception, SystemExit)`** — 이 코드베이스는 사용자 오류를
+  `SystemExit`으로 알리므로 `except Exception` 만 쓰면 서버가 죽는다.
 - 배포·자동화 문서: `docs/tabs9-배포.md`(Tab S9 proot), `docs/n8n-워크플로우.md`,
   `docs/아키텍처.md`(APK 검토·성능 실측·외부 API 판정), `docs/APK-로드맵.md`.

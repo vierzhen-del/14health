@@ -12,8 +12,8 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from health14 import (analysis, anonymize, config, dashboard, export, family_io,
-                      insurance, intake, md_io, notion_log, ocr, relations,
-                      share, vault, webapp)
+                      hira, insurance, intake, md_io, mcp_server, notion_log,
+                      ocr, official, relations, share, vault, webapp)
 
 
 def _vault() -> Path:
@@ -370,6 +370,77 @@ def cmd_app(args) -> int:
     return 0
 
 
+def cmd_official(args) -> int:
+    """공단·심평원에서 내려받은 공식 파일 파싱 (인증은 사용자가 직접)."""
+    v = _vault()
+    results = official.parse_path(Path(args.path).expanduser())
+    saved = 0
+    for r in results:
+        name = Path(r["file"]).name
+        data = dict(r["data"])
+        relation = args.relation or data.get("relation")
+        label = {"official_checkup": "공식 검진결과", "official_visit": "공식 진료내역",
+                 "checkup": "검진 자료", "statement": "진료비 명세서",
+                 "pharmacy": "약국 영수증"}.get(r["doc_type"], r["doc_type"])
+
+        if not relation:
+            print(f"확인 필요: {name} ({label}) — 대상을 알 수 없습니다. "
+                  "--relation 으로 지정하세요.")
+            continue
+        if r["kind"] == "checkup" and data.get("metrics"):
+            if not data.get("year"):
+                print(f"확인 필요: {name} — 검진 연도를 찾지 못했습니다. "
+                      f"추출 수치: {data['metrics']}")
+                continue
+            path = intake.apply_checkup(v, relation, data)
+        elif r["kind"] == "visit" and data.get("date"):
+            path = intake.apply_visit(v, relation, data)
+        else:
+            print(f"건너뜀: {name} ({label}) — 저장할 항목을 찾지 못했습니다.")
+            continue
+        saved += 1
+        print(f"저장됨: {name} ({label}) → {path}")
+
+    print(f"\n총 {len(results)}개 중 {saved}개 저장 — "
+          "인증정보는 앱을 거치지 않았습니다.")
+    return 0
+
+
+def cmd_mcp(args) -> int:
+    """MCP 서버 (stdio) — Claude CLI·n8n에서 도구로 호출."""
+    return mcp_server.serve()
+
+
+def cmd_hospital(args) -> int:
+    """심평원 공개 API로 병의원·약국 검색 (지역·진료과만 전송)."""
+    try:
+        if args.pharmacy:
+            rows = hira.search_pharmacy(args.sido, args.sggu, args.name or "")
+        else:
+            rows = hira.search_hospital(args.sido, args.sggu,
+                                        args.department or "", args.name or "")
+    except hira.HiraError as e:
+        raise SystemExit(str(e))
+
+    if args.json:
+        print(json.dumps(rows, ensure_ascii=False, indent=2))
+        return 0
+    if not rows:
+        print("검색 결과가 없습니다.")
+        return 0
+    for r in rows:
+        line = f"- {r['이름']}"
+        if r["종별"]:
+            line += f" ({r['종별']})"
+        print(line)
+        if r["주소"]:
+            print(f"    {r['주소']}")
+        if r["전화"]:
+            print(f"    ☎ {r['전화']}")
+    print(f"\n총 {len(rows)}곳 — 지역·진료과만 조회했고 건강정보는 전송하지 않았습니다.")
+    return 0
+
+
 def cmd_log(args) -> int:
     v = _vault()
     if args.sync_notion:
@@ -545,6 +616,24 @@ def build_parser() -> argparse.ArgumentParser:
                     help="같은 네트워크(집 와이파이·Tailscale)의 폰·PC에서 접속 허용. "
                          "1회용 토큰이 붙은 주소가 출력됩니다.")
     sp.set_defaults(func=cmd_app)
+
+    sp = sub.add_parser("official",
+                        help="공단·심평원에서 내려받은 공식 파일(PDF 등) 가져오기")
+    sp.add_argument("path", help="파일 또는 폴더 경로")
+    sp.add_argument("--relation", help="관계호칭 (파일에서 못 찾을 때)")
+    sp.set_defaults(func=cmd_official)
+
+    sp = sub.add_parser("mcp", help="MCP 서버 실행 (stdio) — Claude CLI·n8n 연동")
+    sp.set_defaults(func=cmd_mcp)
+
+    sp = sub.add_parser("hospital", help="병의원·약국 찾기 (심평원 공개 API)")
+    sp.add_argument("--sido", default="", help="시도 코드")
+    sp.add_argument("--sggu", default="", help="시군구 코드")
+    sp.add_argument("--department", help="진료과 (예: 소아청소년과)")
+    sp.add_argument("--name", help="병원·약국 이름 일부")
+    sp.add_argument("--pharmacy", action="store_true", help="약국 검색")
+    sp.add_argument("--json", action="store_true", help="JSON 출력 (n8n 파싱용)")
+    sp.set_defaults(func=cmd_hospital)
 
     sp = sub.add_parser("log", help="작업 이력 조회 / 노션 동기화")
     sp.add_argument("--sync-notion", action="store_true",

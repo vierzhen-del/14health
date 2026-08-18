@@ -241,6 +241,7 @@ textarea{resize:vertical;min-height:56px}
         <button data-m="photo">📷 사진</button>
         <button data-m="folder">🗂 폴더 이미지</button>
         <button data-m="md">📄 MD 파일</button>
+        <button data-m="official">📑 공식 파일</button>
       </div>
 
       <div class="method-panel" id="mp-chat">
@@ -280,6 +281,19 @@ textarea{resize:vertical;min-height:56px}
         <input type="file" id="md-file" accept=".md,text/markdown">
         <button class="btn ghost" onclick="parseMdFile()">🔍 MD 파일 해석</button>
         <div id="md-result"></div>
+      </div>
+
+      <div class="method-panel" id="mp-official">
+        <label>공단·심평원에서 내려받은 파일 경로</label>
+        <input type="text" id="official-path"
+               placeholder="예: ~/Downloads/건강검진결과통보서.pdf">
+        <button class="btn ghost" onclick="parseOfficial()">🔍 공식 파일 해석</button>
+        <p class="hint">국민건강보험 <b>'나의 건강기록'</b>·공단 홈페이지에서 본인이
+          직접 내려받은 검진결과·진료내역 파일(PDF·TXT)을 읽습니다.
+          <b>인증은 공단 사이트에서 직접 하시므로 간편인증·인증서 정보가 앱을 거치지 않습니다.</b>
+          (마이헬스웨이 API는 이용기관 사전심사 대상이라 개인 앱에서 자동 연동이 불가합니다 —
+          <code>docs/아키텍처.md</code> 참조)</p>
+        <div id="official-result"></div>
       </div>
 
       <label>구성원</label><select id="ck-relation"></select>
@@ -811,7 +825,9 @@ function fillCheckupForm(parsed){
   toast(`수치 ${Object.keys(metrics).length}개를 폼에 채웠습니다 — 확인 후 저장하세요.`);
 }
 const DOC_LABEL={checkup:"검진 결과지", statement:"진료비 명세서·영수증",
-                 pharmacy:"약국 영수증", unknown:"판별 불가"};
+                 pharmacy:"약국 영수증", unknown:"판별 불가",
+                 official_checkup:"공단 검진결과 통보서",
+                 official_visit:"공단 진료받은내용"};
 
 /* 관계호칭 → 표시명 (아들(첫째) → 큰아들) */
 function displayOf(relation){
@@ -942,6 +958,25 @@ async function ocrFolder(){
     renderOcrResults("folder-result", r.results);
   }catch(e){ document.getElementById("folder-result").innerHTML=
     `<div class="ocr-result">${esc(e.message)}</div>`; }
+}
+
+async function parseOfficial(){
+  const path=document.getElementById("official-path").value.trim();
+  if(!path) return toast("파일 경로를 입력하세요.");
+  const box=document.getElementById("official-result");
+  box.innerHTML='<div class="ocr-result">해석 중…</div>';
+  try{
+    const r=await postJSON("/api/official/parse",{path});
+    box.innerHTML=r.results.map(x=>{
+      const name=x.file.split("/").pop();
+      const target=x.kind==="visit"?"진료 기록 폼":"검진 폼";
+      return `<div class="ocr-result"><b>${esc(name)}</b>
+        ${parsedChips(x)}
+        <button class="btn ghost sm" onclick='applyParsed(${JSON.stringify(x).replace(/'/g,"&#39;")})'>${target}에 채우기</button>
+        <pre>${esc((x.text||"").slice(0,500))}</pre></div>`;
+    }).join("");
+    if(r.results.length===1) applyParsed(r.results[0]);
+  }catch(e){ box.innerHTML=`<div class="ocr-result">${esc(e.message)}</div>`; }
 }
 
 async function parseMdFile(){
