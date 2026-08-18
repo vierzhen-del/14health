@@ -87,15 +87,26 @@ def _member_diseases(vault_path: Path, relation: str,
                      history: List[Dict[str, Any]]) -> List[str]:
     """구성원의 주요 병명 — 진료 진단명 + 해당 구성원 가족력."""
     diseases: List[str] = []
+
+    def add(name: str) -> None:
+        name = (name or "").strip()
+        if not name:
+            return
+        # "고혈압"과 "고혈압 추적"처럼 한쪽이 다른 쪽을 포함하면 짧은 쪽만 남긴다
+        for i, existing in enumerate(diseases):
+            if name.startswith(existing) or existing.startswith(name):
+                if len(name) < len(existing):
+                    diseases[i] = name
+                return
+        diseases.append(name)
+
     for visit in vault.load_visits(vault_path, relation):
-        d = (visit.get("diagnosis") or "").strip()
         # 진단명이 문장형이면 앞부분만 (예: "급성기관지염. 경과관찰 필요")
-        d = d.split(".")[0].split("—")[0].strip()
-        if d and d not in diseases:
-            diseases.append(d)
+        d = (visit.get("diagnosis") or "").split(".")[0].split("—")[0]
+        add(d)
     for h in history:
-        if h.get("relation") == relation and h.get("disease") not in diseases:
-            diseases.append(h["disease"])
+        if h.get("relation") == relation:
+            add(h.get("disease", ""))
     return diseases
 
 

@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from health14 import anonymize, vault
+from health14 import anonymize, insurance, vault
 
 
 def _to_number(value: Any) -> Any:
@@ -60,7 +60,8 @@ def apply_visit(vault_path: Path, relation: str, data: Dict[str, Any]) -> Path:
     cost = {k: won for k, won in
             ((k, _to_won(v)) for k, v in (data.get("cost") or {}).items())
             if won is not None}
+    claim = insurance.normalize_claim(data.get("claim"))
     path = vault.add_visit(vault_path, relation, data["date"], hospital,
-                           symptoms, diagnosis, medications, memo, cost)
+                           symptoms, diagnosis, medications, memo, cost, claim)
     vault.log_action(vault_path, relation, "진료입력", f"{hospital} 진료 기록", path)
     return path

@@ -233,3 +233,103 @@ def test_ocr_endpoint_returns_matched_member(server, tmp_path, monkeypatch):
     # 응답 텍스트에는 실명·등록번호가 남지 않는다
     assert "홍철수" not in item["text"] and "20240915" not in item["text"]
     assert item["parsed"]["relation"] == "아들"
+
+
+def test_calendar_and_tree_endpoints(server, tmp_path):
+    _post(server, "/api/vault/create", {"path": str(tmp_path / "cal")})
+    _post(server, "/api/member", {"relation": "나", "birth": 1978, "sex": "M",
+                                  "category": "본인"})
+    _post(server, "/api/member", {"relation": "장인", "birth": 1948, "sex": "M",
+                                  "category": "처부모"})
+    _post(server, "/api/note", {"relation": "나", "type": "visit",
+                                "date": "2026-03-14", "hospital": "내과",
+                                "symptoms": ["기침"], "diagnosis": "급성기관지염",
+                                "cost": {"본인부담금": "12,000"}})
+
+    cal = _get(server, "/api/calendar?year=2026")
+    assert cal["entries"][0]["relation"] == "나"
+    assert cal["entries"][0]["week"] == "2026-W11"
+    assert 2026 in cal["years"]
+
+    tree = _get(server, "/api/tree")
+    gens = {g["generation"]: [m["relation"] for m in g["members"]]
+            for g in tree["generations"]}
+    assert gens[0] == ["나"] and gens[1] == ["장인"]
+    me = [m for m in tree["generations"][-1]["members"] if m["relation"] == "나"][0]
+    assert "급성기관지염" in me["diseases"]
+
+
+def test_member_endpoint_stores_name_locally(server, tmp_path):
+    """실명은 config에만 저장되고 vault 노트에는 남지 않는다."""
+    from health14 import config as config_mod
+    vault_dir = tmp_path / "alias"
+    _post(server, "/api/vault/create", {"path": str(vault_dir)})
+    r = _post(server, "/api/member", {"relation": "아들", "birth": 2012, "sex": "M",
+                                      "display": "큰아들", "name": "홍철수"})
+    assert r["aliasAdded"] is True
+    assert config_mod.get_aliases()["홍철수"] == "아들"
+    for note in vault_dir.rglob("*.md"):
+        assert "홍철수" not in note.read_text(encoding="utf-8")
+
+
+def test_recommend_endpoint_family_wide(server, tmp_path):
+    _post(server, "/api/vault/create", {"path": str(tmp_path / "rec")})
+    for rel, birth in (("나", 1978), ("부인", 1981)):
+        _post(server, "/api/member", {"relation": rel, "birth": birth, "sex": "M"})
+    _post(server, "/api/note", {"relation": "나", "type": "checkup", "year": 2025,
+                                "metrics": {"수축기혈압": 138, "이완기혈압": 88}})
+    r = _post(server, "/api/recommend", {})
+    assert r["engine"].startswith("규칙 기반")
+    assert {x["relation"] for x in r["results"]} == {"나", "부인"}
+    me = [x for x in r["results"] if x["relation"] == "나"][0]
+    assert any(risk["metric"] == "수축기혈압" for risk in me["risks"])
+    assert me["recommendations"]
+
+
+def test_family_json_endpoints(server, tmp_path):
+    vault_dir = tmp_path / "fam"
+    _post(server, "/api/vault/create", {"path": str(vault_dir)})
+    _post(server, "/api/member", {"relation": "나", "birth": 1978, "sex": "M",
+                                  "name": "홍길동"})
+    r = _post(server, "/api/family/export", {})
+    assert r["ok"] and not r["includesNames"]
+    with urllib.request.urlopen(server + r["url"]) as resp:
+        body = resp.read().decode("utf-8")
+    assert "홍길동" not in body          # 기본 내보내기에는 실명 없음
+
+    content = json.dumps({"schema": "14health-family", "version": 1,
+                          "members": [{"relation": "딸", "birth_year": 2015,
+                                       "sex": "F", "category": "자녀"}],
+                          "family_history": []})
+    imported = _post(server, "/api/family/import", {"content": content})
+    assert imported["added"] == ["딸"]
+
+
+def test_insurance_endpoints_reject_policy_number(server, tmp_path):
+    """웹앱 경로로도 증권번호가 저장되지 않는다."""
+    vault_dir = tmp_path / "ins"
+    _post(server, "/api/vault/create", {"path": str(vault_dir)})
+    _post(server, "/api/member", {"relation": "나", "birth": 1978, "sex": "M"})
+    _post(server, "/api/insurance", {
+        "relation": "나", "보험사": "삼성화재", "상품명": "다이렉트 실손",
+        "종류": "실손", "증권번호": "ABC-123456"})
+
+    listed = _get(server, "/api/insurance")
+    assert listed["insurances"]["나"][0]["상품명"] == "다이렉트 실손"
+    assert "ABC-123456" not in json.dumps(listed, ensure_ascii=False)
+    for note in vault_dir.rglob("*.md"):
+        assert "ABC-123456" not in note.read_text(encoding="utf-8")
+
+
+def test_claims_endpoint_and_home_summary(server, tmp_path):
+    _post(server, "/api/vault/create", {"path": str(tmp_path / "clm")})
+    _post(server, "/api/member", {"relation": "나", "birth": 1978, "sex": "M"})
+    _post(server, "/api/insurance", {"relation": "나", "보험사": "삼성화재",
+                                     "상품명": "실손", "종류": "실손"})
+    _post(server, "/api/note", {"relation": "나", "type": "visit",
+                                "date": "2026-08-01", "hospital": "내과",
+                                "cost": {"본인부담금": "12,000"}})
+    r = _get(server, "/api/claims")
+    assert r["summary"]["count"] == 1
+    assert r["pending"][0]["amount"] == 12000
+    assert _get(server, "/api/data")["claims"]["count"] == 1

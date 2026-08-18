@@ -117,6 +117,8 @@ textarea{resize:vertical;min-height:56px}
 .matched{background:#e2f5ea;color:#14663c;border-radius:10px;padding:8px 10px;
   font-size:13.5px;margin-bottom:6px}
 .matched-how{display:block;font-size:11.5px;color:#3d7a58;margin-top:2px}
+.claim-banner{background:#fdf1dd;color:#8a5d10;cursor:pointer;font-size:14px}
+.claim-banner b{color:#6d4a0d}
 .matched.unmatched{background:#fdf1dd;color:#8a5d10}
 .matched.unmatched .matched-how{color:#a5793a}
 .cap-row{display:flex;gap:8px;margin:6px 0}
@@ -124,6 +126,46 @@ textarea{resize:vertical;min-height:56px}
   border-radius:12px;font-size:13.5px;font-weight:700;color:var(--brand-deep);
   background:#f7f9fc;cursor:pointer}
 .cap-row input[type=file]{display:none}
+
+/* 가족 관계도 */
+.gen-row{margin-bottom:12px}
+.gen-label{font-size:11.5px;font-weight:800;color:var(--sub);margin-bottom:5px;
+  padding-left:2px;letter-spacing:.02em}
+.gen-nodes{display:flex;flex-wrap:wrap;gap:8px}
+.tnode{flex:0 0 auto;min-width:104px;max-width:150px;background:#fff;border:1.5px solid var(--line);
+  border-radius:12px;padding:8px 10px;cursor:pointer;transition:transform .08s}
+.tnode:active{transform:scale(.97)}
+.tnode.on{border-color:var(--brand);box-shadow:0 0 0 2px #4a7bd022}
+.tnode.spouse-side{border-style:dashed;background:#fbfcfe}
+.tnode .tname{font-size:14px;font-weight:800}
+.tnode .tmeta{font-size:11px;color:var(--sub);margin-top:1px}
+.tnode .tdis{display:flex;flex-wrap:wrap;gap:3px;margin-top:5px}
+.tnode .tdis span{font-size:10px;background:#fbe4e2;color:#a33a31;border-radius:999px;
+  padding:1px 7px}
+.tnode .tdis span.ok{background:#e2f5ea;color:#1a7a4c}
+
+/* 캘린더 */
+.cal-controls{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+.cal-controls select{width:auto;flex:0 0 auto;margin:0}
+.cal-months{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.cal-month{border:1px solid var(--line);border-radius:10px;padding:7px 8px;min-height:64px}
+.cal-month h4{font-size:11.5px;color:var(--sub);font-weight:800;margin-bottom:4px}
+.cal-dot{display:inline-block;font-size:10px;border-radius:999px;padding:1px 6px;
+  margin:1px 2px 1px 0;background:#eaf0fb;color:var(--brand-deep);cursor:pointer}
+.cal-dot.visit{background:#fdf1dd;color:#8a5d10}
+.cal-dot.checkup{background:#e2f5ea;color:#1a7a4c}
+.cal-dot.analysis{background:#ece9fa;color:#5e4fb5}
+.cal-week{border-bottom:1px solid var(--line);padding:8px 2px}
+.cal-week:last-child{border-bottom:none}
+.cal-week h4{font-size:12.5px;font-weight:800;margin-bottom:3px}
+.cal-item{font-size:13px;padding:3px 0;display:flex;gap:6px;align-items:baseline}
+.cal-item .who{font-weight:700;font-size:12px;color:var(--brand-deep);flex:0 0 auto}
+.cal-empty{color:var(--sub);font-size:13px;padding:10px 2px}
+
+/* 추천 */
+.rec-card h3{font-size:15px;font-weight:800;margin-bottom:2px}
+.rec-card .sub{font-size:12px;color:var(--sub);margin-bottom:8px}
+.rec-sec{font-size:12.5px;font-weight:800;color:var(--sub);margin:10px 0 4px}
 
 /* ---- 최초실행 setup 화면 ---- */
 #setup{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
@@ -169,11 +211,16 @@ textarea{resize:vertical;min-height:56px}
 </header>
 <main>
   <section id="view-home" class="view on">
+    <div id="claim-banner"></div>
     <h2 class="section">가족 건강 현황</h2>
     <div id="home-cards"></div>
   </section>
 
   <section id="view-member" class="view">
+    <h2 class="section">가족 관계도</h2>
+    <div class="card"><div id="family-tree"></div>
+      <p class="hint">노드를 누르면 해당 구성원 상세로 이동합니다.
+        배지는 진료 진단명·가족력에서 모은 주요 병명입니다.</p></div>
     <h2 class="section">구성원 상세</h2>
     <div class="chips" id="member-chips"></div>
     <div id="member-detail"></div>
@@ -183,16 +230,7 @@ textarea{resize:vertical;min-height:56px}
     <h2 class="section">데이터 입력</h2>
 
     <div class="card">
-      <h3 style="font-size:14px;margin-bottom:6px">👪 구성원 추가</h3>
-      <label>관계호칭</label>
-      <input type="text" id="in-member-relation" placeholder="예: 나, 부인, 아들, 딸, 어머니">
-      <div class="row2">
-        <div><label>출생연도</label><input type="number" id="in-member-birth" placeholder="1980"></div>
-        <div><label>성별</label>
-          <select id="in-member-sex"><option value="M">남</option><option value="F">여</option></select>
-        </div>
-      </div>
-      <button class="btn" onclick="submitMember()">구성원 등록</button>
+      <p class="hint" style="margin:0">구성원 등록·실명 지정은 <b>설정 › 가족 관리</b>에서 합니다.</p>
     </div>
 
     <div class="card">
@@ -277,6 +315,17 @@ textarea{resize:vertical;min-height:56px}
         <div><label>본인부담금 (선택)</label><input type="text" id="vs-cost-self" placeholder="34,500"></div>
         <div><label>총액 (선택)</label><input type="text" id="vs-cost-total" placeholder="95,000"></div>
       </div>
+      <div class="row2">
+        <div><label>실비 청구</label>
+          <select id="vs-claim">
+            <option value="">기록 안 함</option>
+            <option value="미청구">미청구</option>
+            <option value="청구중">청구중</option>
+            <option value="수령완료">수령완료</option>
+            <option value="대상아님">대상아님</option>
+          </select></div>
+        <div><label>수령액 (선택)</label><input type="text" id="vs-claim-amount" placeholder="9,600"></div>
+      </div>
       <label>메모 (선택)</label><textarea id="vs-memo"></textarea>
       <button class="btn" onclick="submitVisit()">진료 기록 저장</button>
     </div>
@@ -290,19 +339,132 @@ textarea{resize:vertical;min-height:56px}
     </div>
   </section>
 
-  <section id="view-plan" class="view">
-    <h2 class="section" id="plan-title">연도별 건강 일정</h2>
-    <div class="chips" id="plan-chips"></div>
-    <div id="plan-detail"></div>
+  <section id="view-calendar" class="view">
+    <h2 class="section">건강 캘린더</h2>
+    <div class="card">
+      <div class="cal-controls">
+        <select id="cal-year"></select>
+        <div class="seg" id="cal-modes" style="margin:0;flex:1">
+          <button data-mode="year" class="on">연간</button>
+          <button data-mode="week">주차별</button>
+        </div>
+      </div>
+      <div class="chips" id="cal-chips"></div>
+      <div id="cal-body"></div>
+    </div>
+  </section>
+
+  <section id="view-recommend" class="view">
+    <h2 class="section">예방 건강검진 추천</h2>
+    <div class="card">
+      <label>대상</label>
+      <select id="rec-target"></select>
+      <button class="btn" onclick="runRecommend()">🩺 추천 실행</button>
+      <p class="hint">지금까지 등록된 검진 수치·진료기록·가족력을 종합해
+        규칙 엔진이 계산합니다. <b>기기 안에서만 처리되며 어떤 데이터도 외부로 전송하지
+        않습니다.</b></p>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:4px">
+        <input type="checkbox" id="rec-save" style="width:auto"> 결과를 옵시디안 분석 노트로 저장
+      </label>
+    </div>
+    <div id="rec-result"></div>
     <h2 class="section">생애주기 건강검진 일정</h2>
     <div id="lifecycle"></div>
   </section>
 
   <section id="view-settings" class="view">
     <h2 class="section">설정</h2>
+
     <div class="card">
-      <div class="settings-row"><span>현재 Vault</span><span class="val" id="set-vault-path">-</span></div>
+      <h3 style="font-size:14px;margin-bottom:6px">🗂 옵시디안 Vault</h3>
+      <div class="settings-row"><span>현재 경로</span><span class="val" id="set-vault-path">-</span></div>
       <div class="settings-row"><span>구성원 수</span><span class="val" id="set-member-count">-</span></div>
+      <label>Vault 경로</label>
+      <input type="text" id="set-vault-input" placeholder="예: ~/Documents/건강vault">
+      <div class="field-row">
+        <button class="btn sm" style="margin-top:0" onclick="doVaultAction('create')">Vault 생성</button>
+        <button class="btn ghost sm" style="margin-top:0" onclick="doVaultAction('connect')">기존 Vault 연결</button>
+      </div>
+      <div id="set-vault-result" style="margin-top:6px;font-size:13px"></div>
+      <p class="hint">생성 시 <code>00-가족/</code> 과 <code>구성원/&lt;관계호칭&gt;/검진·진료·분석</code>
+        구조가 만들어져 개인별로 기록이 분리됩니다. 기존 옵시디안 vault 경로를 연결하면
+        그대로 이어서 사용합니다.</p>
+    </div>
+
+    <div class="card">
+      <h3 style="font-size:14px;margin-bottom:6px">👪 가족 관리</h3>
+      <div class="row2">
+        <div><label>관계호칭</label>
+          <input type="text" id="in-member-relation" list="relation-list"
+                 placeholder="예: 나, 부인, 아들"></div>
+        <div><label>분류</label><select id="in-member-category"></select></div>
+      </div>
+      <datalist id="relation-list"></datalist>
+      <div class="row2">
+        <div><label>출생연도</label><input type="number" id="in-member-birth" placeholder="1980"></div>
+        <div><label>성별</label>
+          <select id="in-member-sex"><option value="M">남</option><option value="F">여</option></select>
+        </div>
+      </div>
+      <div class="row2">
+        <div><label>표시명 (선택)</label>
+          <input type="text" id="in-member-display" placeholder="예: 큰아들"></div>
+        <div><label>실명 (선택)</label>
+          <input type="text" id="in-member-name" placeholder="영수증 자동매칭용"></div>
+      </div>
+      <button class="btn" onclick="submitMember()">구성원 등록</button>
+      <p class="hint">같은 관계가 여럿이면 관계호칭을 <b>아들(첫째)</b> 처럼 구분해 적고
+        표시명을 지정하세요. <b>실명은 이 기기의 설정 파일에만 저장</b>되며
+        옵시디안 노트·내보내기·노션에는 절대 기록되지 않습니다 —
+        영수증을 촬영했을 때 어느 가족의 것인지 자동으로 골라내는 데만 씁니다.</p>
+      <div id="member-list" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card">
+      <h3 style="font-size:14px;margin-bottom:6px">🛡 보험 관리</h3>
+      <div class="row2">
+        <div><label>구성원</label><select id="ins-relation"></select></div>
+        <div><label>종류</label><select id="ins-kind"></select></div>
+      </div>
+      <div class="row2">
+        <div><label>보험사</label><input type="text" id="ins-company" placeholder="예: 삼성화재"></div>
+        <div><label>상품명</label><input type="text" id="ins-product" placeholder="예: 다이렉트 실손"></div>
+      </div>
+      <div class="row2">
+        <div><label>가입일 (선택)</label><input type="date" id="ins-start"></div>
+        <div><label>갱신일 (선택)</label><input type="date" id="ins-renew"></div>
+      </div>
+      <div class="row2">
+        <div><label>보험료 (선택)</label><input type="text" id="ins-fee" placeholder="32,000"></div>
+        <div><label>자기부담금 (선택)</label><input type="text" id="ins-deduct" placeholder="20% 또는 10000"></div>
+      </div>
+      <label>보장항목 (쉼표로 구분, 선택)</label>
+      <input type="text" id="ins-cover" placeholder="입원, 통원, 약제비">
+      <button class="btn" onclick="submitInsurance()">보험 등록</button>
+      <p class="hint">⚠️ <b>증권번호·고객번호는 저장하지 않습니다.</b> 청구할 때 필요한 번호는
+        보험사 앱에서 확인하세요 — vault가 유출돼도 금융 식별정보가 새지 않도록 아예
+        스키마에서 뺐습니다.</p>
+      <div id="ins-list" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card">
+      <h3 style="font-size:14px;margin-bottom:6px">🧬 가족정보 JSON</h3>
+      <div class="field-row">
+        <button class="btn sm" style="margin-top:0" onclick="doFamilyExport()">내보내기</button>
+        <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12.5px">
+          <input type="checkbox" id="fam-include-names" style="width:auto"> 실명 포함
+        </label>
+      </div>
+      <div id="fam-export-result" style="margin-top:6px;font-size:13px"></div>
+      <label>JSON 파일 가져오기</label>
+      <input type="file" id="fam-import-file" accept=".json,application/json">
+      <label style="display:flex;align-items:center;gap:6px;font-size:12.5px">
+        <input type="checkbox" id="fam-restore-names" style="width:auto"> 실명도 복원
+      </label>
+      <button class="btn ghost" onclick="doFamilyImport()">가져오기</button>
+      <div id="fam-import-result" style="margin-top:6px;font-size:13px"></div>
+      <p class="hint">구성원·가족력만 담깁니다(검진 수치·진료 기록은 Vault 내보내기 사용).
+        실명 포함 시 개인정보가 들어가니 안전한 곳에 보관하세요.</p>
     </div>
 
     <div class="card">
@@ -370,7 +532,8 @@ textarea{resize:vertical;min-height:56px}
   <button data-tab="home" class="on"><span class="ic">🏠</span>홈</button>
   <button data-tab="member"><span class="ic">👨‍👩‍👧‍👦</span>가족</button>
   <button data-tab="input"><span class="ic">✍️</span>입력</button>
-  <button data-tab="plan"><span class="ic">📅</span>일정</button>
+  <button data-tab="calendar"><span class="ic">📅</span>캘린더</button>
+  <button data-tab="recommend"><span class="ic">🩺</span>추천</button>
   <button data-tab="settings"><span class="ic">⚙️</span>설정</button>
 </nav>
 </div>
@@ -379,7 +542,8 @@ textarea{resize:vertical;min-height:56px}
 
 <script>
 let DATA = null;
-let STATE = { tab: "home", member: null };
+let STATE = { tab: "home", member: null, tree: null, insurance: null,
+              calendar: null, calYear: null, calMode: "year", calMember: null };
 const S_COLOR = {"정상":"var(--ok)","주의":"var(--warn)","위험":"var(--danger)","관찰":"var(--watch)"};
 const AVATAR = {"나":"🧑","부인":"👩","남편":"👨","아들":"👦","딸":"👧",
   "아버지":"👴","어머니":"👵","할아버지":"👴","할머니":"👵"};
@@ -425,6 +589,7 @@ async function boot(){
   }
   document.getElementById("setup").style.display="none";
   document.getElementById("app").style.display="block";
+  await loadRelationOptions();
   await loadData();
 }
 
@@ -459,17 +624,19 @@ async function loadData(){
   if(!STATE.member && DATA.members.length) STATE.member = DATA.members[0].relation;
   populateRelationSelects();
   render();
+  // 관계도·캘린더·보험은 별도 경량 API — 화면을 먼저 그린 뒤 채운다
+  loadTree(); loadCalendar(); loadInsurances();
 }
 
 function populateRelationSelects(){
-  const relations = (DATA.members||[]).map(m=>m.relation);
+  const rels = (DATA.members||[]).map(m=>m.relation);
   for(const id of ["ck-relation","vs-relation","mdx-relation"]){
     const el = document.getElementById(id);
     const current = el.value;
-    el.innerHTML = relations.length
-      ? relations.map(r=>`<option value="${esc(r)}">${esc(r)}</option>`).join("")
+    el.innerHTML = rels.length
+      ? rels.map(r=>`<option value="${esc(r)}">${esc(displayOf(r))}</option>`).join("")
       : `<option value="">먼저 구성원을 등록하세요</option>`;
-    if(relations.includes(current)) el.value = current;
+    if(rels.includes(current)) el.value = current;
   }
 }
 
@@ -540,7 +707,7 @@ function homeCards(){
     return `<div class="card member-card" onclick="selectMember('${esc(m.relation)}')">
       <div class="mc-head">
         <div class="avatar">${AVATAR[m.relation]||"🙂"}</div>
-        <div><div class="mc-title">${esc(m.relation)} (${m.age}세)</div>
+        <div><div class="mc-title">${esc(m.display||m.relation)} (${m.age}세)</div>
         <div class="mc-stage">${esc(m.stage)}</div></div>
         <span class="mc-overall b-${ov}">${ov==="정상"?"정상":ov+" 필요"}</span>
       </div>
@@ -553,7 +720,7 @@ function homeCards(){
 /* ---------- 가족 ---------- */
 function chips(containerId){
   document.getElementById(containerId).innerHTML=(DATA.members||[]).map(m=>
-    `<div class="chip ${m.relation===STATE.member?"on":""}" onclick="setMember('${esc(m.relation)}')">${AVATAR[m.relation]||"🙂"} ${esc(m.relation)}</div>`).join("");
+    `<div class="chip ${m.relation===STATE.member?"on":""}" onclick="setMember('${esc(m.relation)}')">${AVATAR[m.relation]||"🙂"} ${esc(m.display||m.relation)}</div>`).join("");
 }
 function memberDetail(){
   chips("member-chips");
@@ -582,7 +749,7 @@ function memberDetail(){
   el.innerHTML=`
     <div class="card"><div class="mc-head">
       <div class="avatar">${AVATAR[m.relation]||"🙂"}</div>
-      <div><div class="mc-title">${esc(m.relation)} (${m.age}세 · ${m.sex==="F"?"여":"남"})</div>
+      <div><div class="mc-title">${esc(m.display||m.relation)} (${m.age}세 · ${m.sex==="F"?"여":"남"})</div>
       <div class="mc-stage">${esc(m.stage)} · ${m.birth_year}년생</div></div></div>
       <div class="opinion">${esc(m.opinion)}</div>
       <button class="btn ghost" onclick="runAnalyze('${esc(m.relation)}')">🔍 위험도 분석 다시 실행</button></div>
@@ -611,26 +778,10 @@ async function doShare(relation){
 }
 
 /* ---------- 일정 ---------- */
-function planDetail(){
-  chips("plan-chips");
-  const m=member(STATE.member);
-  const el=document.getElementById("plan-detail");
-  document.getElementById("plan-title").textContent=(m?m.relation+" ":"")+"연도별 건강 일정";
-  if(!m){el.innerHTML=`<div class="card empty">구성원을 먼저 등록하세요.</div>`;return;}
-  const qs=["Q1","Q2","Q3","Q4"].map(q=>{
-    const items=(m.quarters[q]||[]);
-    return `<div class="q-block"><div class="q-label">${q}</div>
-      <div class="q-items">${items.length?items.map(esc).join("<br>"):'<span class="none">예정 없음</span>'}</div></div>`;
-  }).join("");
-  el.innerHTML=`<div class="card">
-    <h3 style="font-size:14px;margin-bottom:6px">${esc(m.relation)}의 향후 1년 검진 계획</h3>${qs}
-    <div style="height:10px"></div>
-    <div class="opinion"><b>소견</b> · ${esc(m.opinion)}</div></div>`;
-}
 function lifecycle(){
   document.getElementById("lifecycle").innerHTML=(DATA.lifecycle||[]).map(s=>{
     const mem=(DATA.members||[]).filter(m=>m.age>=s.age_min&&m.age<=s.age_max)
-      .map(m=>`<span class="lc-me">${AVATAR[m.relation]||"🙂"} ${esc(m.relation)} ${m.age}세</span>`).join("");
+      .map(m=>`<span class="lc-me">${AVATAR[m.relation]||"🙂"} ${esc(m.display||m.relation)} ${m.age}세</span>`).join("");
     const range=s.age_max>=120?`${s.age_min}세 이상`:`${s.age_min}~${s.age_max}세`;
     return `<div class="lc-band" style="background:${s.color}22;border-left:5px solid ${s.color}">
       <h4 style="color:${s.color}">● ${esc(s.stage)} (${range})</h4>
@@ -840,12 +991,167 @@ async function submitMember(){
   const relation = document.getElementById("in-member-relation").value.trim();
   const birth = document.getElementById("in-member-birth").value;
   const sex = document.getElementById("in-member-sex").value;
+  const category = document.getElementById("in-member-category").value;
+  const display = document.getElementById("in-member-display").value.trim();
+  const name = document.getElementById("in-member-name").value.trim();
   if(!relation || !birth) return toast("관계호칭과 출생연도를 입력하세요.");
   try{
-    await postJSON("/api/member", {relation, birth: Number(birth), sex});
-    toast(`${relation} 등록 완료`);
-    document.getElementById("in-member-relation").value="";
-    document.getElementById("in-member-birth").value="";
+    const r=await postJSON("/api/member",
+      {relation, birth: Number(birth), sex, category, display, name});
+    toast(`${display||relation} 등록 완료`
+      + (r.aliasAdded?" · 실명은 이 기기에만 저장됨":""));
+    for(const id of ["in-member-relation","in-member-birth",
+                     "in-member-display","in-member-name"])
+      document.getElementById(id).value="";
+    await loadData();
+  }catch(e){ toast(e.message); }
+}
+
+/* 관계 카테고리·호칭 목록 (설정 › 가족 관리 입력 보조) */
+async function loadRelationOptions(){
+  try{
+    const r=await getJSON("/api/relations");
+    const cats=r.categories||[];
+    document.getElementById("in-member-category").innerHTML=
+      '<option value="">자동 분류</option>'
+      + cats.map(c=>`<option value="${esc(c.key)}">${esc(c.key)}</option>`).join("");
+    document.getElementById("relation-list").innerHTML=
+      cats.flatMap(c=>c.relations.map(x=>
+        `<option value="${esc(x.name)}">${esc(c.key)}</option>`)).join("");
+  }catch(e){ /* vault 없이도 앱은 뜬다 */ }
+}
+
+function renderMemberList(){
+  const el=document.getElementById("member-list");
+  if(!el) return;
+  const members=DATA&&DATA.members||[];
+  el.innerHTML=members.length
+    ? members.map(m=>`<div class="settings-row"><span>${AVATAR[m.relation]||"🙂"}
+        ${esc(m.display||m.relation)}</span>
+        <span class="val">${esc(m.category||"")} · ${m.age}세</span></div>`).join("")
+    : '<div class="hint">아직 등록된 구성원이 없습니다.</div>';
+}
+
+/* ---------- Vault 생성 / 연결 ---------- */
+async function doVaultAction(action){
+  const path=document.getElementById("set-vault-input").value.trim();
+  const box=document.getElementById("set-vault-result");
+  if(!path) return toast("Vault 경로를 입력하세요.");
+  try{
+    const r=await postJSON("/api/vault/"+action,{path});
+    box.innerHTML=`<div class="hint">✅ ${esc(r.vaultPath||path)} ${
+      action==="create"?"생성 완료 — 구성원별 폴더 구조가 준비되었습니다."
+                      :"연결 완료"}</div>`;
+    toast(action==="create"?"Vault 생성 완료":"Vault 연결 완료");
+    await loadData();
+  }catch(e){ box.innerHTML=`<div class="hint">${esc(e.message)}</div>`; }
+}
+
+/* ---------- 보험 · 실비 청구 ---------- */
+const INSURANCE_KINDS=["실손","암","치아","상해","질병","운전자","종신","간병","기타"];
+
+function renderInsuranceForm(){
+  const kind=document.getElementById("ins-kind");
+  if(kind && !kind.options.length)
+    kind.innerHTML=INSURANCE_KINDS.map(k=>`<option value="${k}">${k}</option>`).join("");
+  const sel=document.getElementById("ins-relation");
+  if(sel){
+    const cur=sel.value;
+    sel.innerHTML=(DATA.members||[]).map(m=>
+      `<option value="${esc(m.relation)}">${esc(m.display||m.relation)}</option>`).join("");
+    if(cur) sel.value=cur;
+  }
+}
+async function loadInsurances(){
+  try{ STATE.insurance=await getJSON("/api/insurance"); }catch(e){ STATE.insurance=null; }
+  renderInsuranceList();
+}
+function renderInsuranceList(){
+  const el=document.getElementById("ins-list");
+  if(!el) return;
+  const all=(STATE.insurance||{}).insurances||{};
+  const rows=[];
+  for(const [rel,items] of Object.entries(all))
+    for(const i of items)
+      rows.push(`<div class="settings-row"><span>${esc(displayOf(rel))} · ${esc(i.보험사||"")}
+        ${esc(i.상품명||"")}</span><span class="val">${esc(i.종류||"-")}</span></div>`);
+  el.innerHTML=rows.length?rows.join("")
+    :'<div class="hint">등록된 보험이 없습니다.</div>';
+}
+async function submitInsurance(){
+  const relation=document.getElementById("ins-relation").value;
+  const company=document.getElementById("ins-company").value.trim();
+  const product=document.getElementById("ins-product").value.trim();
+  if(!relation) return toast("구성원을 먼저 등록하세요.");
+  if(!company||!product) return toast("보험사와 상품명을 입력하세요.");
+  const body={relation, 보험사:company, 상품명:product,
+    종류:document.getElementById("ins-kind").value};
+  const opt=(id,key)=>{const v=document.getElementById(id).value.trim(); if(v) body[key]=v;};
+  opt("ins-start","가입일"); opt("ins-renew","갱신일");
+  opt("ins-fee","보험료"); opt("ins-deduct","자기부담금"); opt("ins-cover","보장항목");
+  try{
+    await postJSON("/api/insurance", body);
+    toast(`${company} ${product} 등록 완료`);
+    for(const id of ["ins-company","ins-product","ins-fee","ins-deduct","ins-cover"])
+      document.getElementById(id).value="";
+    await loadInsurances();
+    await loadData();
+  }catch(e){ toast(e.message); }
+}
+
+function renderClaimBanner(){
+  const el=document.getElementById("claim-banner");
+  if(!el) return;
+  const s=(DATA||{}).claims||{};
+  if(!s.count){ el.innerHTML=""; return; }
+  const urgent=s.urgent?` · <b>${s.urgent}건 시효 임박</b>`:"";
+  el.innerHTML=`<div class="card claim-banner" onclick="showClaims()">
+    💰 실비 미청구 <b>${s.count}건</b> · 총 ${Number(s.total).toLocaleString()}원${urgent}
+    <span class="matched-how">눌러서 목록 보기</span></div>`;
+}
+async function showClaims(){
+  try{
+    const r=await getJSON("/api/claims");
+    const rows=(r.pending||[]).map(p=>{
+      const flag=p.expired?'<span class="badge b-위험">시효경과</span>'
+        :(p.urgent?'<span class="badge b-주의">시효임박</span>':"");
+      return `<div class="risk-item"><span>
+        <b>${esc(p.display)}</b> ${esc(p.date)} ${esc(p.hospital)} ·
+        ${Number(p.amount).toLocaleString()}원 · 남은기한 ${p.days_left}일</span>${flag}</div>`;
+    }).join("");
+    document.getElementById("claim-banner").innerHTML=
+      `<div class="card"><h3 style="font-size:14px;margin-bottom:6px">💰 실비 미청구 목록</h3>
+       ${rows||'<div class="hint">미청구 건이 없습니다.</div>'}
+       <p class="hint">청구는 보험사 앱·콜센터에서 진행하고, 완료되면 진료 기록의
+         실비 청구 상태를 <b>수령완료</b>로 바꿔주세요. 실손 청구권 소멸시효는 3년입니다.</p>
+       <button class="btn ghost sm" onclick="renderClaimBanner()">닫기</button></div>`;
+  }catch(e){ toast(e.message); }
+}
+
+/* ---------- 가족정보 JSON ---------- */
+async function doFamilyExport(){
+  const includeNames=document.getElementById("fam-include-names").checked;
+  try{
+    const r=await postJSON("/api/family/export",{includeNames});
+    document.getElementById("fam-export-result").innerHTML=
+      `<a class="btn ghost sm" href="${r.url}" download>⬇ ${esc(r.name)}</a>`
+      + (includeNames?'<div class="hint">⚠️ 실명이 포함된 파일입니다 — 안전하게 보관하세요.</div>':"");
+    toast("가족정보 내보내기 완료");
+  }catch(e){ toast(e.message); }
+}
+async function doFamilyImport(){
+  const f=document.getElementById("fam-import-file").files[0];
+  if(!f) return toast("JSON 파일을 선택하세요.");
+  const restoreNames=document.getElementById("fam-restore-names").checked;
+  try{
+    const content=await f.text();
+    const r=await postJSON("/api/family/import",{content, restoreNames});
+    document.getElementById("fam-import-result").innerHTML=
+      `<div class="hint">추가 ${r.added.length}명${
+        r.skipped.length?`, 이미 있어 건너뜀 ${r.skipped.length}명`:""}${
+        r.history_added?`, 가족력 ${r.history_added}건`:""}${
+        r.aliases_added?`, 실명 ${r.aliases_added}건 복원`:""}</div>`;
+    toast("가족정보 가져오기 완료");
     await loadData();
   }catch(e){ toast(e.message); }
 }
@@ -884,13 +1190,17 @@ async function submitVisit(){
   const total=document.getElementById("vs-cost-total").value.trim();
   if(self_) cost["본인부담금"]=self_;
   if(total) cost["총액"]=total;
+  const claimState=document.getElementById("vs-claim").value;
+  const claimAmount=document.getElementById("vs-claim-amount").value.trim();
+  const claim=claimState?{상태:claimState, ...(claimAmount?{수령액:claimAmount}:{})}:undefined;
   try{
     await postJSON("/api/note", {relation, type:"visit", date, hospital, symptoms,
-      diagnosis: document.getElementById("vs-diagnosis").value, medications, cost,
+      diagnosis: document.getElementById("vs-diagnosis").value, medications, cost, claim,
       memo: document.getElementById("vs-memo").value});
     toast("진료 기록 저장 완료");
     ["vs-hospital","vs-symptoms","vs-diagnosis","vs-rx","vs-memo",
-     "vs-cost-self","vs-cost-total"].forEach(id=>document.getElementById(id).value="");
+     "vs-cost-self","vs-cost-total","vs-claim","vs-claim-amount"]
+      .forEach(id=>document.getElementById(id).value="");
     await loadData();
   }catch(e){ toast(e.message); }
 }
@@ -909,8 +1219,12 @@ async function submitHistory(){
 
 /* ---------- 설정 ---------- */
 function settingsView(){
-  document.getElementById("set-vault-path").textContent = DATA?.vaultPath || "-";
+  const vp = DATA?.vaultPath || "-";
+  document.getElementById("set-vault-path").textContent = vp;
   document.getElementById("set-member-count").textContent = (DATA?.members||[]).length + "명";
+  const input = document.getElementById("set-vault-input");
+  if(!input.value && DATA?.vaultPath) input.value = DATA.vaultPath;
+  renderMemberList();
   document.getElementById("set-log").innerHTML = (DATA?.log||[]).map(e=>
     `<li>${esc(e.date)} · [${esc(e.action)}] ${esc(e.target)} — ${esc(e.title)}</li>`).join("")
     || `<li class="empty">이력 없음</li>`;
@@ -973,6 +1287,166 @@ async function doImport(){
   }catch(e){ toast(e.message); }
 }
 
+/* ---------- 가족 관계도 ---------- */
+async function loadTree(){
+  try{ STATE.tree=await getJSON("/api/tree"); }catch(e){ STATE.tree=null; }
+  renderTree();
+}
+function renderTree(){
+  const el=document.getElementById("family-tree");
+  if(!el) return;
+  const tree=STATE.tree;
+  if(!tree||!tree.generations.length){
+    el.innerHTML='<div class="cal-empty">구성원을 등록하면 관계도가 그려집니다.</div>';
+    return;
+  }
+  el.innerHTML=tree.generations.map(g=>`
+    <div class="gen-row">
+      <div class="gen-label">${esc(g.label)}</div>
+      <div class="gen-nodes">${g.members.map(m=>{
+        const dis=(m.diseases||[]).length
+          ? m.diseases.map(d=>`<span>${esc(d)}</span>`).join("")
+          : '<span class="ok">기록 없음</span>';
+        const more=m.disease_count>m.diseases.length
+          ? `<span>+${m.disease_count-m.diseases.length}</span>` : "";
+        return `<div class="tnode ${m.lineage==="처가"?"spouse-side":""} ${m.relation===STATE.member?"on":""}"
+             onclick="selectMember('${esc(m.relation)}')">
+          <div class="tname">${AVATAR[m.relation]||"🙂"} ${esc(m.display)}</div>
+          <div class="tmeta">${m.age}세 · ${esc(m.category)}</div>
+          <div class="tdis">${dis}${more}</div>
+        </div>`;}).join("")}</div>
+    </div>`).join("");
+}
+
+/* ---------- 캘린더 ---------- */
+const MONTHS=["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"];
+
+async function loadCalendar(year){
+  try{
+    const q=year?`?year=${year}`:"";
+    STATE.calendar=await getJSON("/api/calendar"+q);
+    if(!STATE.calYear) STATE.calYear=(STATE.calendar.years||[])[0]||new Date().getFullYear();
+  }catch(e){ STATE.calendar=null; }
+  renderCalendar();
+}
+document.querySelectorAll("#cal-modes button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll("#cal-modes button").forEach(x=>x.classList.toggle("on",x===b));
+  STATE.calMode=b.dataset.mode;
+  renderCalendar();
+});
+document.getElementById("cal-year").addEventListener("change",e=>{
+  STATE.calYear=Number(e.target.value);
+  loadCalendar(STATE.calYear);
+});
+
+function calFilterChips(){
+  const el=document.getElementById("cal-chips");
+  const all=`<div class="chip ${!STATE.calMember?"on":""}" onclick="setCalMember(null)">가족 전체</div>`;
+  el.innerHTML=all+(DATA.members||[]).map(m=>
+    `<div class="chip ${STATE.calMember===m.relation?"on":""}"
+      onclick="setCalMember('${esc(m.relation)}')">${AVATAR[m.relation]||"🙂"} ${esc(m.display||m.relation)}</div>`).join("");
+}
+function setCalMember(rel){ STATE.calMember=rel; renderCalendar(); }
+
+function renderCalendar(){
+  const yearSel=document.getElementById("cal-year");
+  const cal=STATE.calendar;
+  if(!cal){ document.getElementById("cal-body").innerHTML=
+    '<div class="cal-empty">Vault를 먼저 설정하세요.</div>'; return; }
+  const years=cal.years&&cal.years.length?cal.years:[new Date().getFullYear()];
+  if(!STATE.calYear) STATE.calYear=years[0];
+  yearSel.innerHTML=years.map(y=>
+    `<option value="${y}" ${y===STATE.calYear?"selected":""}>${y}년</option>`).join("");
+  calFilterChips();
+
+  let entries=(cal.entries||[]).filter(e=>e.year===STATE.calYear);
+  if(STATE.calMember) entries=entries.filter(e=>e.relation===STATE.calMember);
+  const body=document.getElementById("cal-body");
+  if(!entries.length){
+    body.innerHTML='<div class="cal-empty">이 해에 기록이 없습니다.</div>'; return;
+  }
+  body.innerHTML=STATE.calMode==="week"?weekView(entries):yearView(entries);
+}
+
+function calDot(e){
+  const day=Number(e.date.slice(8,10));
+  return `<span class="cal-dot ${e.kind}" title="${esc(e.date)} · ${esc(e.display)} · ${esc(e.title)}"
+    onclick="openNote('${esc(e.note)}')">${day}일 ${esc(e.display)}</span>`;
+}
+function yearView(entries){
+  const byMonth={};
+  for(const e of entries) (byMonth[e.month] ||= []).push(e);
+  return `<div class="cal-months">` + MONTHS.map((name,i)=>{
+    const list=byMonth[i+1]||[];
+    return `<div class="cal-month"><h4>${name}</h4>${
+      list.length?list.map(calDot).join(""):'<span style="font-size:11px;color:#b6bfcd">–</span>'}</div>`;
+  }).join("") + `</div>`;
+}
+function weekView(entries){
+  const byWeek={};
+  for(const e of entries) (byWeek[e.week] ||= []).push(e);
+  return Object.keys(byWeek).sort().reverse().map(week=>{
+    const list=byWeek[week];
+    const wk=week.split("-W")[1];
+    return `<div class="cal-week"><h4>${esc(week.split("-W")[0])}년 ${Number(wk)}주차</h4>${
+      list.map(e=>`<div class="cal-item"><span class="who">${esc(e.display)}</span>
+        <span>${esc(e.date)} · ${esc(e.label)} — ${esc(e.title)}</span></div>`).join("")}</div>`;
+  }).join("");
+}
+function openNote(note){
+  window.open("/api/file?path="+encodeURIComponent(note),"_blank");
+}
+
+/* ---------- 예방 검진 추천 ---------- */
+function renderRecTarget(){
+  const sel=document.getElementById("rec-target");
+  const cur=sel.value;
+  sel.innerHTML='<option value="">가족 전체</option>'+(DATA.members||[]).map(m=>
+    `<option value="${esc(m.relation)}">${esc(m.display||m.relation)}</option>`).join("");
+  if(cur) sel.value=cur;
+}
+async function runRecommend(){
+  const relation=document.getElementById("rec-target").value;
+  const save=document.getElementById("rec-save").checked;
+  const box=document.getElementById("rec-result");
+  if(!(DATA.members||[]).length) return toast("구성원을 먼저 등록하세요.");
+  box.innerHTML='<div class="card"><div class="cal-empty">계산 중…</div></div>';
+  try{
+    const r=await postJSON("/api/recommend",{relation:relation||undefined,save});
+    box.innerHTML=r.results.map(recCard).join("")
+      +`<p class="hint" style="text-align:center">${esc(r.engine)} · 데이터는 기기 밖으로 나가지 않았습니다.</p>`;
+    if(save){ toast("추천 결과를 옵시디안에 저장했습니다."); await loadData(); }
+  }catch(e){ box.innerHTML=`<div class="card">${esc(e.message)}</div>`; }
+}
+function recCard(m){
+  const risks=(m.risks||[]).map(x=>
+    `<div class="risk-item"><span class="risk-dot" style="background:${S_COLOR[x.status]}"></span>
+     <span><b>${esc(x.metric)}</b> — ${esc(x.label)}${x.family_history?" · 가족력":""}</span>
+     ${badge(x.status)}</div>`).join("");
+  const recs=(m.recommendations||[]).map(x=>
+    `<li>${x.family_history?"⭐ ":""}${esc(x.name)} — ${x.interval_years}년 주기</li>`).join("");
+  const depts=(m.departments||[]).map(d=>
+    `<li><b>${esc(d.dept)}</b> — ${esc(d.cadence)}</li>`).join("");
+  const life=[...(m.lifestyle.risk||[]).map(a=>`<li>💡 ${esc(a)}</li>`),
+              ...(m.lifestyle.age_band||[]).map(a=>`<li>${esc(a)}</li>`)].join("");
+  const quarters=["Q1","Q2","Q3","Q4"].map(q=>{
+    const items=m.quarters[q]||[];
+    return `<div class="q-block"><div class="q-label">${q}</div>
+      <div class="q-items">${items.length?items.map(esc).join("<br>"):'<span class="none">예정 없음</span>'}</div></div>`;
+  }).join("");
+  return `<div class="card rec-card">
+    <h3>${AVATAR[m.relation]||"🙂"} ${esc(m.display)}</h3>
+    <div class="sub">${m.age}세 · ${esc(m.stage)}</div>
+    <div class="opinion">${esc(m.opinion)}</div>
+    ${risks?`<div class="rec-sec">주요 위험 요인</div>${risks}`:""}
+    <div class="rec-sec">추천 검진 항목</div>
+    <ul class="plain">${recs||'<li class="none">해당 없음</li>'}</ul>
+    <div class="rec-sec">향후 1년 계획</div>${quarters}
+    ${depts?`<div class="rec-sec">권장 진료·주기</div><ul class="plain">${depts}</ul>`:""}
+    <div class="rec-sec">생활습관 권고</div><ul class="plain">${life}</ul>
+  </div>`;
+}
+
 /* ---------- 내비게이션 ---------- */
 function setTab(tab){
   STATE.tab=tab;
@@ -989,7 +1463,9 @@ function render(){
   if(!DATA) return;
   document.getElementById("hd-meta").textContent=
     `생성일 ${DATA.generated} · 구성원 ${DATA.members.length}명 · 로컬 전용`;
-  homeCards(); memberDetail(); planDetail(); lifecycle(); settingsView();
+  homeCards(); memberDetail(); lifecycle(); settingsView();
+  renderTree(); renderRecTarget(); renderCalendar();
+  renderClaimBanner(); renderInsuranceForm(); renderInsuranceList();
 }
 boot();
 </script>

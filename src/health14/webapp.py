@@ -20,8 +20,9 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 from urllib.parse import parse_qs, quote, urlparse
 
-from health14 import (analysis, anonymize, config, dashboard, export, intake,
-                      md_io, ocr, parse, share, vault)
+from health14 import (analysis, anonymize, calendar_index, config, dashboard,
+                      export, family_io, insurance, intake, md_io, ocr, parse,
+                      relations, share, vault)
 
 
 def _app_html() -> str:
@@ -51,6 +52,7 @@ def _data_payload(v: Path) -> Dict[str, Any]:
     payload["vaultPath"] = str(v)
     payload["familyHistory"] = vault.load_family_history(v)
     payload["log"] = list(reversed(vault.load_log(v)[-20:]))
+    payload["claims"] = insurance.claim_summary(v)
     return payload
 
 
@@ -112,6 +114,44 @@ class Handler(BaseHTTPRequestHandler):
                 v = self._require_vault()
                 if v:
                     self._send_json(_data_payload(v))
+            elif path == "/api/calendar":
+                v = self._require_vault()
+                if v:
+                    query = parse_qs(parsed.query)
+                    year = query.get("year", [None])[0]
+                    entries = calendar_index.build_index(
+                        v, int(year) if year and year.isdigit() else None)
+                    self._send_json({
+                        "entries": entries,
+                        "years": calendar_index.available_years(
+                            calendar_index.build_index(v)),
+                    })
+            elif path == "/api/tree":
+                v = self._require_vault()
+                if v:
+                    self._send_json(relations.build_family_tree(v))
+            elif path == "/api/relations":
+                self._send_json({"categories": relations.categories()})
+            elif path == "/api/claims":
+                v = self._require_vault()
+                if v:
+                    self._send_json({
+                        "pending": insurance.pending_claims(v),
+                        "summary": insurance.claim_summary(v),
+                    })
+            elif path == "/api/insurance":
+                v = self._require_vault()
+                if v:
+                    query = parse_qs(parsed.query)
+                    relation = query.get("relation", [None])[0]
+                    if relation:
+                        items = {relation: insurance.load_insurances(v, relation)}
+                    else:
+                        items = insurance.load_all_insurances(v)
+                    self._send_json({"insurances": {
+                        rel: [{k: val for k, val in i.items() if k != "_path"}
+                              for i in lst]
+                        for rel, lst in items.items()}})
             elif path == "/api/file":
                 self._serve_file(parse_qs(parsed.query))
             else:
@@ -134,6 +174,14 @@ class Handler(BaseHTTPRequestHandler):
                 self._handle_note(data)
             elif path == "/api/analyze":
                 self._handle_analyze(data)
+            elif path == "/api/recommend":
+                self._handle_recommend(data)
+            elif path == "/api/family/export":
+                self._handle_family_export(data)
+            elif path == "/api/family/import":
+                self._handle_family_import(data)
+            elif path == "/api/insurance":
+                self._handle_insurance(data)
             elif path == "/api/dashboard/export":
                 self._handle_dashboard_export()
             elif path == "/api/share":
@@ -178,8 +226,15 @@ class Handler(BaseHTTPRequestHandler):
         relation = (data.get("relation") or "").strip()
         if not relation:
             return self._error("관계호칭을 입력하세요.")
-        vault.add_member(v, relation, int(data["birth"]), data["sex"])
-        self._send_json({"ok": True})
+        category = (data.get("category") or "").strip()
+        display = (data.get("display") or "").strip()
+        vault.add_member(v, relation, int(data["birth"]), data["sex"],
+                         category, display)
+        # 실명은 vault가 아니라 로컬 설정에만 저장 (영수증 자동매칭용)
+        real_name = (data.get("name") or "").strip()
+        if real_name:
+            config.add_alias(real_name, relation)
+        self._send_json({"ok": True, "aliasAdded": bool(real_name)})
 
     def _handle_history(self, data: Dict[str, Any]) -> None:
         v = self._require_vault()
@@ -216,6 +271,80 @@ class Handler(BaseHTTPRequestHandler):
         path = analysis.write_analysis_note(v, relation, report)
         vault.log_action(v, relation, "위험분석", "위험도 분석 리포트 생성", path)
         self._send_json({"ok": True, "opinion": report["opinion"]})
+
+    def _handle_recommend(self, data: Dict[str, Any]) -> None:
+        """예방 건강검진 추천 — 규칙 엔진만 사용(오프라인, 외부 전송 없음).
+
+        relation을 주면 그 구성원, 없으면 가족 전원.
+        """
+        v = self._require_vault()
+        if not v:
+            return
+        targets = ([data["relation"]] if data.get("relation")
+                   else [m["relation"] for m in vault.load_members(v)])
+        results = []
+        for relation in targets:
+            report = analysis.build_member_report(v, relation)
+            member = vault.get_member(v, relation) or {}
+            results.append({
+                "relation": relation,
+                "display": relations.display_name(member) if member else relation,
+                "age": report["age"],
+                "stage": report["stage"],
+                "opinion": report["opinion"],
+                "risks": report["risks"],
+                "recommendations": report["recommendations"],
+                "departments": report["departments"],
+                "lifestyle": report["lifestyle"],
+                "quarters": report["quarters"],
+            })
+            if data.get("save"):
+                path = analysis.write_analysis_note(v, relation, report)
+                vault.log_action(v, relation, "위험분석",
+                                 "예방 검진 추천 리포트 생성", path)
+        self._send_json({"results": results, "engine": "규칙 기반(오프라인)"})
+
+    def _handle_family_export(self, data: Dict[str, Any]) -> None:
+        v = self._require_vault()
+        if not v:
+            return
+        out = family_io.export_family(v, None, bool(data.get("includeNames")))
+        vault.log_action(v, "기타", "내보내기", "가족정보 JSON 내보내기")
+        self._send_json({
+            "ok": True, "path": str(out), "name": out.name,
+            "url": f"/api/file?path={quote(out.relative_to(v).as_posix())}",
+            "includesNames": bool(data.get("includeNames")),
+        })
+
+    def _handle_family_import(self, data: Dict[str, Any]) -> None:
+        v = self._require_vault()
+        if not v:
+            return
+        restore = bool(data.get("restoreNames"))
+        if data.get("content") is not None:
+            payload = json.loads(data["content"])
+            result = family_io.import_family(v, payload, restore)
+        elif data.get("path"):
+            result = family_io.import_family_file(
+                v, Path(data["path"]).expanduser(), restore)
+        else:
+            return self._error("content 또는 path가 필요합니다.")
+        vault.log_action(v, "기타", "가져오기", "가족정보 JSON 가져오기")
+        self._send_json({"ok": True, **result})
+
+    def _handle_insurance(self, data: Dict[str, Any]) -> None:
+        """보험 등록. 증권번호 같은 식별정보 필드는 스키마에 없어 저장되지 않는다."""
+        v = self._require_vault()
+        if not v:
+            return
+        relation = (data.get("relation") or "").strip()
+        if not relation:
+            return self._error("구성원을 선택하세요.")
+        path = insurance.add_insurance(v, relation, data)
+        vault.log_action(v, relation, "보험입력",
+                         f"{data.get('보험사', '')} {data.get('상품명', '')} 등록".strip(),
+                         path)
+        self._send_json({"ok": True, "path": str(path)})
 
     def _handle_dashboard_export(self) -> None:
         v = self._require_vault()

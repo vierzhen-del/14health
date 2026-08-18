@@ -11,7 +11,7 @@ from importlib import resources
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from health14 import analysis, recommend, vault
+from health14 import analysis, recommend, relations, vault
 
 
 def _member_payload(report: Dict[str, Any]) -> Dict[str, Any]:
@@ -26,7 +26,11 @@ def build_data(vault_path: Path) -> Dict[str, Any]:
     members: List[Dict[str, Any]] = []
     for m in vault.load_members(vault_path):
         report = analysis.build_member_report(vault_path, m["relation"])
-        members.append(_member_payload(report))
+        payload = _member_payload(report)
+        # 표시명·분류 — 없으면 관계호칭에서 추론 (기존 vault 하위호환)
+        payload["display"] = relations.display_name(m)
+        payload["category"] = relations.member_category(m)
+        members.append(payload)
     ranges = {name: {"bands": d["bands"]}
               for name, d in recommend.reference_ranges()["metrics"].items()}
     return {

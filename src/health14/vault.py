@@ -198,11 +198,13 @@ def load_checkups(vault: Path, relation: str) -> List[Dict[str, Any]]:
 def add_visit(vault: Path, relation: str, date: str, hospital: str,
               symptoms: List[str], diagnosis: str = "",
               medications: Optional[List[str]] = None, memo: str = "",
-              cost: Optional[Dict[str, int]] = None) -> Path:
+              cost: Optional[Dict[str, int]] = None,
+              claim: Optional[Dict[str, Any]] = None) -> Path:
     if get_member(vault, relation) is None:
         raise SystemExit(f"등록되지 않은 구성원입니다: {relation}")
     medications = medications or []
     cost = {k: v for k, v in (cost or {}).items() if v is not None}
+    claim = {k: v for k, v in (claim or {}).items() if v not in (None, "")}
     safe_hospital = re.sub(r"[^\w가-힣]+", "-", hospital) or "진료"
     path = vault / MEMBERS_DIR / relation / "진료" / f"{date}-{safe_hospital}.md"
     n = 1
@@ -220,6 +222,8 @@ def add_visit(vault: Path, relation: str, date: str, hospital: str,
     }
     if cost:
         meta["cost"] = cost
+    if claim:
+        meta["claim"] = claim
     body = (
         f"# {relation} 진료 — {hospital} ({date})\n\n"
         f"- 병원종류: {hospital}\n"
@@ -230,6 +234,10 @@ def add_visit(vault: Path, relation: str, date: str, hospital: str,
     if cost:
         body += "\n## 의료비\n\n| 항목 | 금액 |\n|---|---|\n"
         body += "".join(f"| {k} | {v:,}원 |\n" for k, v in cost.items())
+    if claim:
+        rows = "\n".join(f"| {k} | {v:,}원 |" if k == "수령액" and isinstance(v, int)
+                         else f"| {k} | {v} |" for k, v in claim.items())
+        body += f"\n## 실비청구\n\n| 항목 | 내용 |\n|---|---|\n{rows}\n"
     if memo:
         body += f"\n## 메모\n\n{memo}\n"
     write_note(path, meta, body)

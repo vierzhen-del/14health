@@ -12,8 +12,8 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from health14 import (analysis, anonymize, config, dashboard, export, family_io,
-                      intake, md_io, notion_log, ocr, relations, share, vault,
-                      webapp)
+                      insurance, intake, md_io, notion_log, ocr, relations,
+                      share, vault, webapp)
 
 
 def _vault() -> Path:
@@ -163,12 +163,54 @@ def cmd_visit(args) -> int:
     cost = {k: intake._to_won(val)
             for k, val in _parse_fields(args.cost or []).items()}
     cost = {k: val for k, val in cost.items() if val is not None}
+    claim = insurance.normalize_claim(
+        {"상태": args.claim} if args.claim else None) if args.claim else {}
+    if args.claim_amount and claim:
+        claim["수령액"] = args.claim_amount
     path = vault.add_visit(
         v, args.relation, args.date, args.hospital, symptoms,
         anonymize.anonymize(args.diagnosis or ""), medications,
-        anonymize.anonymize(args.memo or ""), cost)
+        anonymize.anonymize(args.memo or ""), cost, claim)
     vault.log_action(v, args.relation, "진료입력", f"{args.hospital} 진료 기록", path)
     print(f"진료 기록 저장: {path}")
+    return 0
+
+
+def cmd_insurance(args) -> int:
+    v = _vault()
+    if args.action == "add":
+        fields = _parse_fields(args.field or [])
+        fields.update(보험사=args.company, 상품명=args.product, 종류=args.kind or "")
+        path = insurance.add_insurance(v, args.relation, fields)
+        vault.log_action(v, args.relation, "보험입력", f"{args.company} {args.product} 등록", path)
+        print(f"보험 등록 완료: {path}")
+        return 0
+    # list
+    targets = [args.relation] if args.relation else [
+        m["relation"] for m in vault.load_members(v)]
+    for relation in targets:
+        items = insurance.load_insurances(v, relation)
+        if not items:
+            continue
+        print(f"[{relation}]")
+        for i in items:
+            print(f"  - {i.get('보험사')} {i.get('상품명')} ({i.get('종류', '-')})")
+    return 0
+
+
+def cmd_claims(args) -> int:
+    v = _vault()
+    pending = insurance.pending_claims(v)
+    if args.json:
+        print(json.dumps(pending, ensure_ascii=False))
+        return 0
+    if not pending:
+        print("실비 미청구 건이 없습니다.")
+        return 0
+    for p in pending:
+        flag = " ⚠️ 시효임박" if p["urgent"] else (" ❌ 소멸시효 경과" if p["expired"] else "")
+        print(f"- {p['display']} · {p['date']} {p['hospital']} · {p['amount']:,}원"
+             f" · 남은기한 {p['days_left']}일{flag}")
     return 0
 
 
@@ -380,8 +422,28 @@ def build_parser() -> argparse.ArgumentParser:
     v1.add_argument("--rx", action="append", help="처방약 (여러 번 지정 가능)")
     v1.add_argument("--cost", action="append", metavar="항목=금액",
                     help="의료비 (예: --cost 본인부담금=34500 --cost 총액=95000)")
+    v1.add_argument("--claim", choices=insurance.CLAIM_STATES,
+                    help="실비 청구 상태 (미청구/청구중/수령완료/대상아님)")
+    v1.add_argument("--claim-amount", type=int, help="실비 수령액 (원)")
     v1.add_argument("--memo", default="")
     sp.set_defaults(func=cmd_visit)
+
+    sp = sub.add_parser("insurance", help="보험 가입정보 관리 (증권번호는 저장하지 않음)")
+    isub = sp.add_subparsers(dest="action", required=True)
+    i1 = isub.add_parser("add", help="보험 등록")
+    i1.add_argument("relation")
+    i1.add_argument("--company", required=True, help="보험사")
+    i1.add_argument("--product", required=True, help="상품명")
+    i1.add_argument("--kind", choices=insurance.KINDS, help="보험 종류")
+    i1.add_argument("--field", action="append", metavar="항목=값",
+                    help="예: --field 가입일=2020-01-01 --field 보험료=45000")
+    i2 = isub.add_parser("list", help="보험 목록")
+    i2.add_argument("relation", nargs="?", help="생략 시 가족 전체")
+    sp.set_defaults(func=cmd_insurance)
+
+    sp = sub.add_parser("claims", help="실비 미청구 건 조회")
+    sp.add_argument("--json", action="store_true")
+    sp.set_defaults(func=cmd_claims)
 
     sp = sub.add_parser("history", help="가족력 입력")
     hsub = sp.add_subparsers(dest="action", required=True)
