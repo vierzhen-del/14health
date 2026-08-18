@@ -206,3 +206,30 @@ def test_export_and_share_file_download(server, tmp_path):
     assert res["url"].startswith("/api/file?path=")
     with urllib.request.urlopen(server + res["url"]) as r:
         assert len(r.read()) > 0
+
+
+def test_ocr_endpoint_returns_matched_member(server, tmp_path, monkeypatch):
+    """영수증 OCR 응답에 자동매칭 결과가 담긴다 (OCR은 스텁으로 대체)."""
+    from health14 import config as config_mod
+    from health14 import ocr as ocr_mod
+    from health14 import webapp as webapp_mod
+
+    _post(server, "/api/vault/create", {"path": str(tmp_path / "match")})
+    _post(server, "/api/member", {"relation": "아들", "birth": 2012, "sex": "M"})
+    config_mod.add_alias("홍철수", "아들")
+
+    receipt = ("환자명: 홍철수  등록번호: 20240915\n조제일자 2026-07-25\n"
+               "처방 의료기관: 소아청소년과\n1. 알마겔현탁액 1일3회\n본인부담금 4,800원")
+    monkeypatch.setattr(ocr_mod, "tesseract_available", lambda: True)
+    monkeypatch.setattr(webapp_mod.ocr, "tesseract_available", lambda: True)
+    monkeypatch.setattr(webapp_mod.ocr, "extract_text",
+                        lambda p: [{"file": "receipt.png", "text": receipt}])
+
+    r = _post(server, "/api/ocr", {"folder": str(tmp_path)})
+    item = r["results"][0]
+    assert item["matchedMember"] == "아들"
+    assert item["matchedBy"] == "실명"
+    assert item["kind"] == "visit"
+    # 응답 텍스트에는 실명·등록번호가 남지 않는다
+    assert "홍철수" not in item["text"] and "20240915" not in item["text"]
+    assert item["parsed"]["relation"] == "아들"

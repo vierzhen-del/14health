@@ -93,3 +93,112 @@ def test_md_generic_table():
     assert m["총콜레스테롤"] == 210
     assert m["체중"] == 76
     assert r["data"]["year"] == 2023
+
+
+# ---------------------------------------- 진료명세서·약국영수증
+
+STATEMENT = """
+진 료 비 계 산 서 · 영 수 증
+환자명: 홍길동    등록번호: 12345678
+진료기간: 2026-07-25 ~ 2026-07-25
+진료과: 응급의학과      병원: 서울OO병원
+[급여] 진찰료 15,000  검사료 48,000
+본인부담금 34,500   공단부담금 60,500
+총액 95,000 원    납부금액 34,500 원
+"""
+
+PHARMACY = """
+OO약국  032-123-4567
+조제일자 2026-07-25
+처방전 발행 의료기관: 서울OO병원 소아청소년과
+1. 록소프로펜나트륨정 60mg  1일3회 3일분
+2. 알마겔현탁액           1일3회 3일분
+본인부담금 4,800원
+"""
+
+CHECKUP_SHEET = """
+2025년 건강검진 결과
+혈압: 138/88 mmHg   공복혈당: 115 mg/dL
+체중 80 kg  신장 174 cm
+"""
+
+
+def test_detect_document_types():
+    assert parse.detect_document_type(STATEMENT) == "statement"
+    assert parse.detect_document_type(PHARMACY) == "pharmacy"
+    assert parse.detect_document_type(CHECKUP_SHEET) == "checkup"
+
+
+def test_parse_statement_extracts_department_and_cost():
+    r = parse.parse_visit_text(STATEMENT)
+    assert r["date"] == "2026-07-25"
+    assert r["hospital"] == "응급의학과"
+    assert r["cost"]["본인부담금"] == 34500
+    assert r["cost"]["총액"] == 95000
+
+
+def test_parse_pharmacy_extracts_medications():
+    r = parse.parse_visit_text(PHARMACY)
+    assert r["date"] == "2026-07-25"
+    assert "록소프로펜나트륨정" in r["medications"]
+    assert "알마겔현탁액" in r["medications"]
+    assert r["cost"]["본인부담금"] == 4800
+
+
+def test_parse_document_routes_to_right_form():
+    assert parse.parse_document(STATEMENT)["kind"] == "visit"
+    assert parse.parse_document(PHARMACY)["kind"] == "visit"
+    assert parse.parse_document(CHECKUP_SHEET)["kind"] == "checkup"
+
+
+def test_visit_parser_ignores_patient_identifiers():
+    """파서는 환자 실명·등록번호를 구조화 결과에 담지 않는다."""
+    import json
+    payload = json.dumps(parse.parse_visit_text(STATEMENT), ensure_ascii=False)
+    assert "홍길동" not in payload and "12345678" not in payload
+
+
+def test_labeled_medications():
+    r = parse.parse_visit_text("처방약: 타이레놀, 항생제\n진료과: 내과\n진료일 2026-03-02")
+    assert r["medications"] == ["타이레놀", "항생제"]
+    assert r["hospital"] == "내과"
+
+
+# ---------------------------------------- 영수증 → 가족 자동매칭
+
+def test_match_member_by_registered_name():
+    r = parse.match_member(STATEMENT, {"홍길동": "나"}, ["나", "부인"])
+    assert r["relation"] == "나" and r["matched_by"] == "실명"
+
+
+def test_match_member_prefers_longer_name():
+    aliases = {"홍길": "부인", "홍길동": "나"}
+    assert parse.match_member(STATEMENT, aliases, ["나", "부인"])["relation"] == "나"
+
+
+def test_match_member_by_relation_word():
+    text = "진료과: 내과\n환자명: 아들\n진료일 2026-07-25"
+    r = parse.match_member(text, {}, ["나", "아들"])
+    assert r["relation"] == "아들" and r["matched_by"] == "관계호칭"
+
+
+def test_match_member_no_substring_false_positive():
+    """'나'가 '나트륨'·'하나'에 걸려 오매칭되면 안 된다."""
+    text = "1. 록소프로펜나트륨정 60mg\n조제일자 2026-07-25"
+    assert parse.match_member(text, {}, ["나", "아들"])["relation"] is None
+
+
+def test_match_member_custom_relation_label():
+    text = "환자명: 아들(첫째)\n진료과: 소아청소년과"
+    r = parse.match_member(text, {}, ["아들(첫째)", "아들(둘째)"])
+    assert r["relation"] == "아들(첫째)"
+
+
+def test_match_member_returns_none_when_unknown():
+    r = parse.match_member(PHARMACY, {"홍길동": "나"}, ["나"])
+    assert r["relation"] is None and r["matched_by"] is None
+
+
+def test_extract_patient_name():
+    assert parse.extract_patient_name(STATEMENT) == "홍길동"
+    assert parse.extract_patient_name("아무 내용 없음") is None

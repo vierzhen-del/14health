@@ -1,0 +1,121 @@
+# 가족 관계 체계 — 카테고리 · 개별 호칭 · 세대 · 계보
+#
+# generation: 본인(0) 기준 위 세대는 +, 아래 세대는 -
+# lineage: 본가 | 처가(배우자 쪽) — 관계도 좌/우 배치에 사용
+# 같은 관계가 여러 명일 수 있으므로 표시명(display)은 구성원 등록 시 따로 지정한다.
+#   예) 관계 "아들", 표시명 "아들(첫째)" / "아들(둘째)"
+
+categories:
+  - key: 본인
+    order: 1
+    lineage: 본가
+    relations:
+      - { name: 나, generation: 0, sex: any }
+
+  - key: 배우자
+    order: 2
+    lineage: 본가
+    relations:
+      - { name: 부인, generation: 0, sex: F }
+      - { name: 남편, generation: 0, sex: M }
+
+  - key: 부모
+    order: 3
+    lineage: 본가
+    relations:
+      - { name: 아버지, generation: 1, sex: M }
+      - { name: 어머니, generation: 1, sex: F }
+
+  - key: 처부모
+    order: 4
+    lineage: 처가
+    relations:
+      - { name: 장인, generation: 1, sex: M }
+      - { name: 장모, generation: 1, sex: F }
+      - { name: 시아버지, generation: 1, sex: M }
+      - { name: 시어머니, generation: 1, sex: F }
+
+  - key: 자녀
+    order: 5
+    lineage: 본가
+    relations:
+      - { name: 아들, generation: -1, sex: M }
+      - { name: 딸, generation: -1, sex: F }
+      - { name: 며느리, generation: -1, sex: F }
+      - { name: 사위, generation: -1, sex: M }
+
+  - key: 손자
+    order: 6
+    lineage: 본가
+    relations:
+      - { name: 손자, generation: -2, sex: M }
+
+  - key: 손녀
+    order: 7
+    lineage: 본가
+    relations:
+      - { name: 손녀, generation: -2, sex: F }
+
+  - key: 친척
+    order: 8
+    lineage: 본가
+    relations:
+      - { name: 할아버지, generation: 2, sex: M }
+      - { name: 할머니, generation: 2, sex: F }
+      - { name: 큰아버지, generation: 1, sex: M }
+      - { name: 작은아버지, generation: 1, sex: M }
+      - { name: 삼촌, generation: 1, sex: M }
+      - { name: 고모, generation: 1, sex: F }
+      - { name: 형, generation: 0, sex: M }
+      - { name: 누나, generation: 0, sex: F }
+      - { name: 오빠, generation: 0, sex: M }
+      - { name: 언니, generation: 0, sex: F }
+      - { name: 남동생, generation: 0, sex: M }
+      - { name: 여동생, generation: 0, sex: F }
+      - { name: 동생, generation: 0, sex: any }
+      - { name: 사촌, generation: 0, sex: any }
+      - { name: 조카, generation: -1, sex: any }
+
+  - key: 외가친척
+    order: 9
+    lineage: 본가
+    relations:
+      - { name: 외할아버지, generation: 2, sex: M }
+      - { name: 외할머니, generation: 2, sex: F }
+      - { name: 외삼촌, generation: 1, sex: M }
+      - { name: 이모, generation: 1, sex: F }
+      - { name: 이모부, generation: 1, sex: M }
+      - { name: 외숙모, generation: 1, sex: F }
+      - { name: 외사촌, generation: 0, sex: any }
+
+  - key: 배우자친척
+    order: 10
+    lineage: 처가
+    relations:
+      - { name: 시할아버지, generation: 2, sex: M }
+      - { name: 시할머니, generation: 2, sex: F }
+      - { name: 시숙, generation: 0, sex: M }
+      - { name: 시누이, generation: 0, sex: F }
+      - { name: 처남, generation: 0, sex: M }
+      - { name: 처제, generation: 0, sex: F }
+      - { name: 처형, generation: 0, sex: F }
+      - { name: 형수, generation: 0, sex: F }
+      - { name: 제수, generation: 0, sex: F }
+      - { name: 동서, generation: 0, sex: any }
+
+  - key: 배우자외가
+    order: 11
+    lineage: 처가
+    relations:
+      - { name: 처외할아버지, generation: 2, sex: M }
+      - { name: 처외할머니, generation: 2, sex: F }
+      - { name: 처이모, generation: 1, sex: F }
+      - { name: 처외삼촌, generation: 1, sex: M }
+
+# 관계도 세대 행 라벨 (generation 값 → 표시)
+generation_labels:
+  2: 조부모 세대
+  1: 부모 세대
+  0: 본인 세대
+  -1: 자녀 세대
+  -2: 손자녀 세대

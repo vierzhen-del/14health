@@ -83,11 +83,14 @@ def load_members(vault: Path) -> List[Dict[str, Any]]:
 def save_members(vault: Path, members: List[Dict[str, Any]]) -> None:
     path = vault / FAMILY_DIR / FAMILY_FILE
     rows = "\n".join(
-        f"| {m['relation']} | {m.get('birth_year', '')} | {m.get('sex', '')} |"
+        f"| {m.get('display') or m['relation']} | {m['relation']} "
+        f"| {m.get('category', '')} | {m.get('birth_year', '')} "
+        f"| {m.get('sex', '')} |"
         for m in members
     )
     body = (
-        "# 가족구성\n\n| 관계 | 출생연도 | 성별 |\n|---|---|---|\n" + rows + "\n"
+        "# 가족구성\n\n| 표시명 | 관계 | 분류 | 출생연도 | 성별 |\n"
+        "|---|---|---|---|---|\n" + rows + "\n"
     )
     write_note(path, {"type": "family", "members": members}, body)
 
@@ -99,23 +102,42 @@ def get_member(vault: Path, relation: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-def add_member(vault: Path, relation: str, birth_year: int, sex: str) -> None:
+def add_member(vault: Path, relation: str, birth_year: int, sex: str,
+               category: str = "", display: str = "") -> None:
+    """구성원 등록.
+
+    relation은 고유 키이자 폴더명(같은 관계가 여럿이면 "아들(첫째)" 처럼 구분).
+    category/display는 선택 — 없으면 relation에서 추론하므로 기존 데이터도 동작한다.
+    """
     members = load_members(vault)
     if any(m["relation"] == relation for m in members):
         raise SystemExit(f"이미 등록된 구성원입니다: {relation}")
-    members.append({"relation": relation, "birth_year": birth_year, "sex": sex})
+    record: Dict[str, Any] = {"relation": relation, "birth_year": birth_year,
+                              "sex": sex}
+    if category:
+        record["category"] = category
+    if display and display != relation:
+        record["display"] = display
+    members.append(record)
     save_members(vault, members)
     member_dir = vault / MEMBERS_DIR / relation
     for sub in ("검진", "진료", "분석"):
         (member_dir / sub).mkdir(parents=True, exist_ok=True)
     profile = member_dir / "프로필.md"
+    label = display or relation
     if not profile.exists():
+        meta: Dict[str, Any] = {"type": "profile", "member": relation,
+                                "birth_year": birth_year, "sex": sex,
+                                "conditions": [], "medications": []}
+        if category:
+            meta["category"] = category
+        if display and display != relation:
+            meta["display"] = display
         write_note(
-            profile,
-            {"type": "profile", "member": relation,
-             "birth_year": birth_year, "sex": sex,
-             "conditions": [], "medications": []},
-            f"# {relation} 프로필\n\n- 출생연도: {birth_year}\n- 성별: {sex}\n",
+            profile, meta,
+            f"# {label} 프로필\n\n- 관계: {relation}\n"
+            + (f"- 분류: {category}\n" if category else "")
+            + f"- 출생연도: {birth_year}\n- 성별: {sex}\n",
         )
 
 
@@ -175,10 +197,12 @@ def load_checkups(vault: Path, relation: str) -> List[Dict[str, Any]]:
 
 def add_visit(vault: Path, relation: str, date: str, hospital: str,
               symptoms: List[str], diagnosis: str = "",
-              medications: Optional[List[str]] = None, memo: str = "") -> Path:
+              medications: Optional[List[str]] = None, memo: str = "",
+              cost: Optional[Dict[str, int]] = None) -> Path:
     if get_member(vault, relation) is None:
         raise SystemExit(f"등록되지 않은 구성원입니다: {relation}")
     medications = medications or []
+    cost = {k: v for k, v in (cost or {}).items() if v is not None}
     safe_hospital = re.sub(r"[^\w가-힣]+", "-", hospital) or "진료"
     path = vault / MEMBERS_DIR / relation / "진료" / f"{date}-{safe_hospital}.md"
     n = 1
@@ -194,6 +218,8 @@ def add_visit(vault: Path, relation: str, date: str, hospital: str,
         "diagnosis": diagnosis,
         "medications": medications,
     }
+    if cost:
+        meta["cost"] = cost
     body = (
         f"# {relation} 진료 — {hospital} ({date})\n\n"
         f"- 병원종류: {hospital}\n"
@@ -201,6 +227,9 @@ def add_visit(vault: Path, relation: str, date: str, hospital: str,
         f"- 진단: {diagnosis or '-'}\n"
         f"- 처방약: {', '.join(medications) or '-'}\n"
     )
+    if cost:
+        body += "\n## 의료비\n\n| 항목 | 금액 |\n|---|---|\n"
+        body += "".join(f"| {k} | {v:,}원 |\n" for k, v in cost.items())
     if memo:
         body += f"\n## 메모\n\n{memo}\n"
     write_note(path, meta, body)

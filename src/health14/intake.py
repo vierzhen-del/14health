@@ -4,8 +4,9 @@
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from health14 import anonymize, vault
 
@@ -18,6 +19,18 @@ def _to_number(value: Any) -> Any:
         return int(f) if f.is_integer() else f
     except (TypeError, ValueError):
         return value
+
+
+def _to_won(value: Any) -> Optional[int]:
+    """의료비 금액 → 정수 원(쉼표·'원' 표기 허용). 해석 불가면 None."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    digits = re.sub(r"[^\d]", "", str(value or ""))
+    return int(digits) if digits else None
 
 
 def apply_checkup(vault_path: Path, relation: str, data: Dict[str, Any]) -> Path:
@@ -44,7 +57,10 @@ def apply_visit(vault_path: Path, relation: str, data: Dict[str, Any]) -> Path:
     diagnosis = anonymize.anonymize(data.get("diagnosis", ""))
     memo = anonymize.anonymize(data.get("memo", ""))
     hospital = data.get("hospital") or "진료"
+    cost = {k: won for k, won in
+            ((k, _to_won(v)) for k, v in (data.get("cost") or {}).items())
+            if won is not None}
     path = vault.add_visit(vault_path, relation, data["date"], hospital,
-                           symptoms, diagnosis, medications, memo)
+                           symptoms, diagnosis, medications, memo, cost)
     vault.log_action(vault_path, relation, "진료입력", f"{hospital} 진료 기록", path)
     return path

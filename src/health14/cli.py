@@ -11,8 +11,9 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
-from health14 import (analysis, anonymize, config, dashboard, export, intake,
-                      md_io, notion_log, ocr, share, vault, webapp)
+from health14 import (analysis, anonymize, config, dashboard, export, family_io,
+                      intake, md_io, notion_log, ocr, relations, share, vault,
+                      webapp)
 
 
 def _vault() -> Path:
@@ -79,15 +80,58 @@ def cmd_member(args) -> int:
     v = _vault()
     if args.action == "list":
         for m in vault.load_members(v):
-            print(f"- {m['relation']} ({m.get('birth_year')}년생, {m.get('sex')}, "
-                  f"{vault.age_of(m)}세)")
+            label = relations.display_name(m)
+            cat = relations.member_category(m)
+            extra = f" [{cat}]" if cat else ""
+            print(f"- {label}{extra} — {m['relation']}, {m.get('birth_year')}년생, "
+                  f"{m.get('sex')}, {vault.age_of(m)}세")
         return 0
     relation = args.relation
-    if relation not in vault.KNOWN_RELATIONS:
-        print(f"참고: '{relation}' 은 표준 관계호칭({', '.join(vault.KNOWN_RELATIONS[:8])} …)이 "
-              "아닙니다. 실명이 아닌 관계호칭인지 확인하세요.")
-    vault.add_member(v, relation, args.birth, args.sex)
-    print(f"구성원 등록: {relation} ({args.birth}년생, {args.sex})")
+    info = relations.relation_info(relation)
+    category = args.category or info["category"]
+    if relation not in relations.all_relations():
+        print(f"참고: '{relation}' 은 표준 관계호칭이 아닙니다 — '{info['name']}' 기준으로 "
+              f"{category}/{relations.generation_label(info['generation'])}에 배치합니다. "
+              "실명이 아닌 관계호칭인지 확인하세요.")
+    vault.add_member(v, relation, args.birth, args.sex, category,
+                     args.display or "")
+    label = args.display or relation
+    print(f"구성원 등록: {label} ({category}, {args.birth}년생, {args.sex})")
+    if args.name:
+        config.add_alias(args.name, relation)
+        print(f"  실명 별칭 등록 완료 — 영수증에서 '{args.name}' 발견 시 자동으로 "
+              f"'{label}' 기록으로 분류됩니다. (실명은 로컬 설정에만 저장)")
+    return 0
+
+
+def cmd_family(args) -> int:
+    v = _vault()
+    if args.action == "export":
+        out = family_io.export_family(
+            v, Path(args.out) if args.out else None, args.include_names)
+        vault.log_action(v, "기타", "내보내기", "가족정보 JSON 내보내기")
+        print(f"가족정보 내보내기 완료: {out}")
+        if args.include_names:
+            print("⚠️  이 파일에는 실명이 포함되어 있습니다 — 안전한 곳에 보관하세요.")
+        return 0
+    result = family_io.import_family_file(v, Path(args.path), args.restore_names)
+    print(f"가족정보 가져오기 완료 — 추가 {len(result['added'])}명"
+          f", 건너뜀 {len(result['skipped'])}명, 가족력 {result['history_added']}건")
+    if result["added"]:
+        print("  추가: " + ", ".join(result["added"]))
+    if result["skipped"]:
+        print("  이미 있어 건너뜀: " + ", ".join(result["skipped"]))
+    if result["aliases_added"]:
+        print(f"  실명 별칭 {result['aliases_added']}건 복원 (로컬 설정)")
+    vault.log_action(v, "기타", "가져오기", "가족정보 JSON 가져오기")
+    return 0
+
+
+def cmd_relations(args) -> int:
+    """등록 가능한 관계호칭을 카테고리별로 보여준다."""
+    for cat in relations.categories():
+        names = [r["name"] for r in cat["relations"]]
+        print(f"[{cat['key']}] {', '.join(names)}")
     return 0
 
 
@@ -116,10 +160,13 @@ def cmd_visit(args) -> int:
     v = _vault()
     symptoms = [anonymize.anonymize(s) for s in (args.symptom or [])]
     medications = [anonymize.anonymize(m) for m in (args.rx or [])]
+    cost = {k: intake._to_won(val)
+            for k, val in _parse_fields(args.cost or []).items()}
+    cost = {k: val for k, val in cost.items() if val is not None}
     path = vault.add_visit(
         v, args.relation, args.date, args.hospital, symptoms,
         anonymize.anonymize(args.diagnosis or ""), medications,
-        anonymize.anonymize(args.memo or ""))
+        anonymize.anonymize(args.memo or ""), cost)
     vault.log_action(v, args.relation, "진료입력", f"{args.hospital} 진료 기록", path)
     print(f"진료 기록 저장: {path}")
     return 0
@@ -279,11 +326,30 @@ def build_parser() -> argparse.ArgumentParser:
     sp = sub.add_parser("member", help="구성원 관리 (관계호칭)")
     msub = sp.add_subparsers(dest="action", required=True)
     m1 = msub.add_parser("add", help="구성원 등록")
-    m1.add_argument("relation", help="관계호칭 (나/부인/아들/딸/어머니 …)")
+    m1.add_argument("relation", help="관계호칭 (나/부인/아들/딸/어머니 …). "
+                                     "같은 관계가 여럿이면 '아들(첫째)' 처럼 구분")
     m1.add_argument("--birth", type=int, required=True, help="출생연도")
     m1.add_argument("--sex", choices=["M", "F"], required=True)
+    m1.add_argument("--category", help="관계 분류 (미지정 시 관계호칭에서 자동 추론)")
+    m1.add_argument("--display", help="화면 표시명 (기본: 관계호칭)")
+    m1.add_argument("--name", help="영수증 자동매칭용 실명 (로컬 설정에만 저장)")
     msub.add_parser("list", help="구성원 목록")
     sp.set_defaults(func=cmd_member)
+
+    sp = sub.add_parser("family", help="가족정보 JSON 내보내기/가져오기")
+    fsub = sp.add_subparsers(dest="action", required=True)
+    f1 = fsub.add_parser("export", help="구성원·가족력을 JSON으로 내보내기")
+    f1.add_argument("--out", help="출력 경로 (기본: 90-내보내기/가족정보-<날짜>.json)")
+    f1.add_argument("--include-names", action="store_true",
+                    help="실명 별칭도 포함 (개인정보 — 기본 제외)")
+    f2 = fsub.add_parser("import", help="가족정보 JSON 가져오기")
+    f2.add_argument("path", help="가족정보 JSON 파일")
+    f2.add_argument("--restore-names", action="store_true",
+                    help="JSON에 실명이 있으면 별칭으로 복원")
+    sp.set_defaults(func=cmd_family)
+
+    sp = sub.add_parser("relations", help="등록 가능한 관계호칭 목록")
+    sp.set_defaults(func=cmd_relations)
 
     sp = sub.add_parser("alias", help="실명→관계호칭 자동치환 등록")
     asub = sp.add_subparsers(dest="action", required=True)
@@ -312,6 +378,8 @@ def build_parser() -> argparse.ArgumentParser:
     v1.add_argument("--symptom", action="append", help="증상 (여러 번 지정 가능)")
     v1.add_argument("--diagnosis", default="", help="진단명")
     v1.add_argument("--rx", action="append", help="처방약 (여러 번 지정 가능)")
+    v1.add_argument("--cost", action="append", metavar="항목=금액",
+                    help="의료비 (예: --cost 본인부담금=34500 --cost 총액=95000)")
     v1.add_argument("--memo", default="")
     sp.set_defaults(func=cmd_visit)
 

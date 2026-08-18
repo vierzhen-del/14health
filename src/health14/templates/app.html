@@ -114,6 +114,16 @@ textarea{resize:vertical;min-height:56px}
 .parsed-chips span{background:#eaf0fb;color:var(--brand-deep);border-radius:999px;
   padding:2px 10px;font-size:12px;font-weight:700}
 .hint{font-size:12px;color:var(--sub);line-height:1.6;margin:6px 0}
+.matched{background:#e2f5ea;color:#14663c;border-radius:10px;padding:8px 10px;
+  font-size:13.5px;margin-bottom:6px}
+.matched-how{display:block;font-size:11.5px;color:#3d7a58;margin-top:2px}
+.matched.unmatched{background:#fdf1dd;color:#8a5d10}
+.matched.unmatched .matched-how{color:#a5793a}
+.cap-row{display:flex;gap:8px;margin:6px 0}
+.cap-row label{flex:1;margin:0;padding:10px;text-align:center;border:1.5px dashed var(--line);
+  border-radius:12px;font-size:13.5px;font-weight:700;color:var(--brand-deep);
+  background:#f7f9fc;cursor:pointer}
+.cap-row input[type=file]{display:none}
 
 /* ---- 최초실행 setup 화면 ---- */
 #setup{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
@@ -196,24 +206,33 @@ textarea{resize:vertical;min-height:56px}
       </div>
 
       <div class="method-panel" id="mp-chat">
-        <label>검진 결과를 자유롭게 적어주세요</label>
-        <textarea id="chat-text" placeholder="예: 나 2025년 검진 혈압 138/88 체중 80kg 공복혈당 115 LDL 152"></textarea>
+        <label>검진 수치나 진료 내용을 자유롭게 적어주세요</label>
+        <textarea id="chat-text" placeholder="예1) 나 2025년 검진 혈압 138/88 체중 80kg 공복혈당 115&#10;예2) 아들 2026-07-25 응급의학과 진료, 본인부담금 34,500원"></textarea>
         <button class="btn ghost" onclick="parseChatText()">🔍 텍스트 분석 → 아래 폼에 채우기</button>
         <div id="chat-result"></div>
       </div>
 
       <div class="method-panel" id="mp-photo">
-        <label>검진 결과지 사진 선택 (복수 가능)</label>
-        <input type="file" id="photo-files" accept="image/*" multiple>
+        <label>검진 결과지 · 진료비 명세서 · 약국 영수증 (복수 가능)</label>
+        <div class="cap-row">
+          <label for="photo-camera">📸 카메라로 촬영
+            <input type="file" id="photo-camera" accept="image/*" capture="environment"></label>
+          <label for="photo-files">🖼 사진 선택
+            <input type="file" id="photo-files" accept="image/*" multiple></label>
+        </div>
+        <div id="photo-picked" class="hint"></div>
         <button class="btn ghost" onclick="ocrPhotos()">🔍 사진 분석 (로컬 OCR)</button>
-        <p class="hint">사진은 이 컴퓨터 안에서만 처리됩니다(tesseract 필요).
+        <p class="hint">문서 종류를 자동 판별해 <b>검진 폼</b> 또는 <b>진료 기록 폼</b>에 채우고,
+          등록해둔 실명과 대조해 <b>어느 가족의 기록인지 자동으로 골라줍니다</b>.
+          사진은 이 기기 안에서만 처리되고 <b>원본은 저장하지 않습니다</b>(tesseract 필요).
+          영수증의 환자명·등록번호는 저장 전에 자동으로 가려집니다.
           더 정확한 판독은 Claude Code의 /검진분석 스킬을 사용하세요.</p>
         <div id="photo-result"></div>
       </div>
 
       <div class="method-panel" id="mp-folder">
-        <label>이미지가 들어있는 폴더 경로</label>
-        <input type="text" id="folder-path" placeholder="예: ~/Pictures/검진캡쳐">
+        <label>이미지가 들어있는 폴더 경로 (검진지·명세서·영수증 혼합 가능)</label>
+        <input type="text" id="folder-path" placeholder="예: ~/Pictures/병원기록">
         <button class="btn ghost" onclick="ocrFolder()">🔍 폴더 내 이미지 분석 (로컬 OCR)</button>
         <div id="folder-result"></div>
       </div>
@@ -254,6 +273,10 @@ textarea{resize:vertical;min-height:56px}
       <label>증상 (쉼표로 구분)</label><input type="text" id="vs-symptoms" placeholder="기침, 발열">
       <label>진단명 (선택)</label><input type="text" id="vs-diagnosis">
       <label>처방약 (쉼표로 구분, 선택)</label><input type="text" id="vs-rx">
+      <div class="row2">
+        <div><label>본인부담금 (선택)</label><input type="text" id="vs-cost-self" placeholder="34,500"></div>
+        <div><label>총액 (선택)</label><input type="text" id="vs-cost-total" placeholder="95,000"></div>
+      </div>
       <label>메모 (선택)</label><textarea id="vs-memo"></textarea>
       <button class="btn" onclick="submitVisit()">진료 기록 저장</button>
     </div>
@@ -636,13 +659,70 @@ function fillCheckupForm(parsed){
   }
   toast(`수치 ${Object.keys(metrics).length}개를 폼에 채웠습니다 — 확인 후 저장하세요.`);
 }
-function parsedChips(parsed){
-  const m=parsed.metrics||{};
-  const chips=Object.entries(m).map(([k,v])=>`<span>${esc(k)} ${esc(v)}</span>`).join("");
-  const meta=[parsed.relation?`대상 ${esc(parsed.relation)}`:null,
-              parsed.year?`연도 ${parsed.year}`:null].filter(Boolean).join(" · ");
-  return `<div class="parsed-chips">${chips||'<span style="background:#fbe4e2;color:var(--danger)">추출된 수치 없음</span>'}</div>`
-    + (meta?`<div class="hint">${meta}</div>`:"");
+const DOC_LABEL={checkup:"검진 결과지", statement:"진료비 명세서·영수증",
+                 pharmacy:"약국 영수증", unknown:"판별 불가"};
+
+/* 관계호칭 → 표시명 (아들(첫째) → 큰아들) */
+function displayOf(relation){
+  const m=member(relation);
+  return (m && m.display) || relation;
+}
+
+function fillVisitForm(parsed){
+  if(parsed.relation && member(parsed.relation))
+    document.getElementById("vs-relation").value=parsed.relation;
+  if(parsed.date) document.getElementById("vs-date").value=parsed.date;
+  if(parsed.hospital) document.getElementById("vs-hospital").value=parsed.hospital;
+  if((parsed.medications||[]).length)
+    document.getElementById("vs-rx").value=parsed.medications.join(", ");
+  const cost=parsed.cost||{};
+  if(cost["본인부담금"]!=null)
+    document.getElementById("vs-cost-self").value=cost["본인부담금"].toLocaleString();
+  const total=cost["총액"]!=null?cost["총액"]:cost["납부금액"];
+  if(total!=null) document.getElementById("vs-cost-total").value=total.toLocaleString();
+  document.getElementById("view-input").scrollTop=0;
+  document.getElementById("vs-relation").scrollIntoView({behavior:"smooth",block:"center"});
+  toast("진료 기록 폼에 채웠습니다 — 증상·진단을 보태고 저장하세요.");
+}
+
+/* 문서 종류에 따라 검진 폼 / 진료 폼으로 분기 */
+function applyParsed(r){
+  if(r.kind==="visit") fillVisitForm(r.parsed);
+  else fillCheckupForm(r.parsed);
+}
+
+function parsedChips(r){
+  const kind=r.kind||"checkup", parsed=r.parsed||r;
+  let chips, meta=[];
+  if(kind==="visit"){
+    const items=[];
+    if(parsed.hospital) items.push(`진료과 ${parsed.hospital}`);
+    for(const m of (parsed.medications||[])) items.push(`💊 ${m}`);
+    for(const [k,v] of Object.entries(parsed.cost||{}))
+      items.push(`${k} ${Number(v).toLocaleString()}원`);
+    chips=items.map(t=>`<span>${esc(t)}</span>`).join("");
+    if(parsed.date) meta.push(`진료일 ${esc(parsed.date)}`);
+  }else{
+    const m=parsed.metrics||{};
+    chips=Object.entries(m).map(([k,v])=>`<span>${esc(k)} ${esc(v)}</span>`).join("");
+    if(parsed.year) meta.push(`연도 ${parsed.year}`);
+  }
+  if(parsed.relation) meta.push(`대상 ${esc(parsed.relation)}`);
+  if(r.docType) meta.unshift(`📄 ${esc(DOC_LABEL[r.docType]||r.docType)}`);
+  let matched="";
+  if(r.matchedMember){
+    const label=displayOf(r.matchedMember);
+    const how=r.matchedBy==="실명"?"등록된 실명으로 확인":"문서의 관계호칭으로 확인";
+    matched=`<div class="matched">👤 <b>${esc(label)}</b> 의 기록으로 보입니다
+      <span class="matched-how">${esc(how)} · 다르면 아래에서 바꾸세요</span></div>`;
+  }else if(r.matchedMember!==undefined){
+    matched=`<div class="matched unmatched">👤 어느 가족인지 자동으로 찾지 못했습니다
+      <span class="matched-how">아래에서 직접 선택하세요.
+        설정 › 가족 관리에서 실명을 등록해두면 다음부터 자동으로 분류됩니다.</span></div>`;
+  }
+  return matched
+    + `<div class="parsed-chips">${chips||'<span style="background:#fbe4e2;color:var(--danger)">추출된 항목 없음</span>'}</div>`
+    + (meta.length?`<div class="hint">${meta.join(" · ")}</div>`:"");
 }
 
 async function parseChatText(){
@@ -650,8 +730,8 @@ async function parseChatText(){
   if(!text) return toast("텍스트를 입력하세요.");
   try{
     const r=await postJSON("/api/parse-text",{text});
-    document.getElementById("chat-result").innerHTML=`<div class="ocr-result">${parsedChips(r.parsed)}</div>`;
-    fillCheckupForm(r.parsed);
+    document.getElementById("chat-result").innerHTML=`<div class="ocr-result">${parsedChips(r)}</div>`;
+    applyParsed(r);
   }catch(e){ toast(e.message); }
 }
 
@@ -664,15 +744,31 @@ function fileToBase64(file){
   });
 }
 function renderOcrResults(containerId, results){
-  document.getElementById(containerId).innerHTML=results.map((r,i)=>
-    `<div class="ocr-result"><b>${esc(r.file.split("/").pop())}</b>
-     ${parsedChips(r.parsed)}
-     <button class="btn ghost sm" onclick='fillCheckupForm(${JSON.stringify(r.parsed).replace(/'/g,"&#39;")})'>이 결과를 폼에 채우기</button>
-     <pre>${esc(r.text.slice(0,600))}</pre></div>`).join("");
+  document.getElementById(containerId).innerHTML=results.map(r=>{
+    const target=r.kind==="visit"?"진료 기록 폼":"검진 폼";
+    const payload=JSON.stringify(r).replace(/'/g,"&#39;");
+    return `<div class="ocr-result"><b>${esc(r.file.split("/").pop())}</b>
+     ${parsedChips(r)}
+     <button class="btn ghost sm" onclick='applyParsed(${payload})'>${target}에 채우기</button>
+     <pre>${esc(r.text.slice(0,600))}</pre></div>`;
+  }).join("");
 }
+/* 카메라 촬영분 + 갤러리 선택분을 함께 모은다 */
+function pickedPhotos(){
+  return [...document.getElementById("photo-camera").files,
+          ...document.getElementById("photo-files").files];
+}
+for(const id of ["photo-camera","photo-files"]){
+  document.getElementById(id).addEventListener("change",()=>{
+    const names=pickedPhotos().map(f=>f.name);
+    document.getElementById("photo-picked").textContent=
+      names.length?`선택됨 ${names.length}장: ${names.join(", ")}`:"";
+  });
+}
+
 async function ocrPhotos(){
-  const files=document.getElementById("photo-files").files;
-  if(!files.length) return toast("사진을 선택하세요.");
+  const files=pickedPhotos();
+  if(!files.length) return toast("사진을 촬영하거나 선택하세요.");
   toast("사진 분석 중…");
   const all=[];
   try{
@@ -682,7 +778,7 @@ async function ocrPhotos(){
       all.push(...r.results);
     }
     renderOcrResults("photo-result", all);
-    if(all.length===1) fillCheckupForm(all[0].parsed);
+    if(all.length===1) applyParsed(all[0]);
   }catch(e){ document.getElementById("photo-result").innerHTML=
     `<div class="ocr-result">${esc(e.message)}</div>`; }
 }
@@ -783,12 +879,18 @@ async function submitVisit(){
   if(!date || !hospital) return toast("진료일과 병원종류를 입력하세요.");
   const symptoms = document.getElementById("vs-symptoms").value.split(",").map(s=>s.trim()).filter(Boolean);
   const medications = document.getElementById("vs-rx").value.split(",").map(s=>s.trim()).filter(Boolean);
+  const cost={};
+  const self_=document.getElementById("vs-cost-self").value.trim();
+  const total=document.getElementById("vs-cost-total").value.trim();
+  if(self_) cost["본인부담금"]=self_;
+  if(total) cost["총액"]=total;
   try{
     await postJSON("/api/note", {relation, type:"visit", date, hospital, symptoms,
-      diagnosis: document.getElementById("vs-diagnosis").value, medications,
+      diagnosis: document.getElementById("vs-diagnosis").value, medications, cost,
       memo: document.getElementById("vs-memo").value});
     toast("진료 기록 저장 완료");
-    ["vs-hospital","vs-symptoms","vs-diagnosis","vs-rx","vs-memo"].forEach(id=>document.getElementById(id).value="");
+    ["vs-hospital","vs-symptoms","vs-diagnosis","vs-rx","vs-memo",
+     "vs-cost-self","vs-cost-total"].forEach(id=>document.getElementById(id).value="");
     await loadData();
   }catch(e){ toast(e.message); }
 }

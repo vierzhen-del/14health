@@ -12,9 +12,20 @@ from typing import List
 
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".webp"}
 
+# 검진지·영수증은 표 형태라 psm 6(균일한 텍스트 블록)이 기본값 3보다 훨씬 정확하다.
+# 실측: 명세서 이미지에서 psm 3은 글자가 깨졌고 psm 6은 전 줄을 정확히 읽었다.
+# 레이아웃이 특이한 문서를 대비해 4(단일 컬럼)·3(자동)을 차례로 시도하고
+# 가장 잘 읽힌 결과를 고른다.
+PSM_ORDER = ("6", "4", "3")
+
 
 def tesseract_available() -> bool:
     return shutil.which("tesseract") is not None
+
+
+def _score(text: str) -> int:
+    """읽기 품질 점수 — 한글·숫자 글자 수. 깨진 결과일수록 낮다."""
+    return sum(1 for ch in text if "가" <= ch <= "힣" or ch.isdigit())
 
 
 def extract_text(target: Path) -> List[dict]:
@@ -41,8 +52,17 @@ def extract_text(target: Path) -> List[dict]:
 
     results = []
     for f in files:
-        proc = subprocess.run(
-            ["tesseract", str(f), "stdout", "-l", lang],
-            capture_output=True, text=True)
-        results.append({"file": str(f), "text": proc.stdout.strip()})
+        best, best_score = "", -1
+        for psm in PSM_ORDER:
+            proc = subprocess.run(
+                ["tesseract", str(f), "stdout", "-l", lang, "--psm", psm],
+                capture_output=True, text=True)
+            text = proc.stdout.strip()
+            score = _score(text)
+            if score > best_score:
+                best, best_score = text, score
+            # 충분히 잘 읽혔으면 나머지 모드는 시도하지 않는다 (속도)
+            if score >= 60:
+                break
+        results.append({"file": str(f), "text": best})
     return results

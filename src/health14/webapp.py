@@ -252,12 +252,29 @@ class Handler(BaseHTTPRequestHandler):
         self._send_json(_state_payload())
 
     def _handle_parse_text(self, data: Dict[str, Any]) -> None:
-        """대화창 자유 텍스트 → 수치 후보 미리보기 (저장은 /api/note로 확정)."""
-        text = anonymize.anonymize(data.get("text", ""))
-        self._send_json({"parsed": parse.parse_checkup_text(text)})
+        """자유 텍스트 → 문서 종류 판별 + 후보 미리보기 (저장은 /api/note로 확정).
+
+        kind가 "checkup"이면 검진 폼, "visit"이면 진료 폼을 채운다.
+        """
+        raw = data.get("text", "")
+        vault_path = config.get_vault_path(required=False)
+        known = ([m["relation"] for m in vault.load_members(vault_path)]
+                 if vault_path and vault_path.exists() else None)
+        match = parse.match_member(raw, config.get_aliases(), known)
+        doc = parse.parse_document(anonymize.anonymize(raw))
+        result = doc["data"]
+        if match["relation"] and not result.get("relation"):
+            result["relation"] = match["relation"]
+        self._send_json({"kind": doc["kind"], "docType": doc["doc_type"],
+                         "parsed": result, "matchedMember": match["relation"],
+                         "matchedBy": match["matched_by"]})
 
     def _handle_ocr(self, data: Dict[str, Any]) -> None:
-        """폴더 경로 또는 base64 이미지 → OCR 텍스트 + 수치 후보."""
+        """폴더 경로 또는 base64 이미지 → OCR 텍스트 + 문서 종류별 추출 결과.
+
+        검진결과지·진료명세서·약국영수증을 자동 판별해 알맞은 폼으로 보낸다.
+        원본 이미지는 저장하지 않고, 익명화된 텍스트만 반환한다.
+        """
         if not ocr.tesseract_available():
             return self._error(
                 "이 컴퓨터에 tesseract(로컬 OCR)가 설치되어 있지 않습니다. "
@@ -282,11 +299,27 @@ class Handler(BaseHTTPRequestHandler):
             results = ocr.extract_text(folder)
         else:
             return self._error("folder 또는 imageBase64가 필요합니다.")
+        # 등록된 실명·구성원 목록 (자동매칭용). vault가 없으면 매칭은 건너뛴다.
+        aliases = config.get_aliases()
+        vault_path = config.get_vault_path(required=False)
+        known = ([m["relation"] for m in vault.load_members(vault_path)]
+                 if vault_path and vault_path.exists() else None)
+
         out = []
         for r in results:
-            text = anonymize.anonymize(r["text"])
-            out.append({"file": r["file"], "text": text,
-                        "parsed": parse.parse_checkup_text(text)})
+            raw = r["text"]
+            # ① 매칭은 반드시 익명화 이전 원문으로 (익명화하면 실명이 사라짐)
+            match = parse.match_member(raw, aliases, known)
+            # ② 익명화 후에는 원문을 더 쓰지 않는다
+            text = anonymize.anonymize(raw)
+            doc = parse.parse_document(text)
+            data = doc["data"]
+            if match["relation"] and not data.get("relation"):
+                data["relation"] = match["relation"]
+            out.append({"file": r["file"], "text": text, "kind": doc["kind"],
+                        "docType": doc["doc_type"], "parsed": data,
+                        "matchedMember": match["relation"],
+                        "matchedBy": match["matched_by"]})
         self._send_json({"results": out})
 
     def _handle_md_parse(self, data: Dict[str, Any]) -> None:
