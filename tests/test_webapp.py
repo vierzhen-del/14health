@@ -333,3 +333,47 @@ def test_claims_endpoint_and_home_summary(server, tmp_path):
     assert r["summary"]["count"] == 1
     assert r["pending"][0]["amount"] == 12000
     assert _get(server, "/api/data")["claims"]["count"] == 1
+
+
+def test_lan_mode_requires_token(isolated_config, tmp_path):
+    """--lan 모드에서는 토큰 없이 접속할 수 없다."""
+    import threading as _t
+    from health14 import webapp as w
+
+    original = w.ACCESS_TOKEN
+    w.ACCESS_TOKEN = "testtoken123"
+    srv = w.make_server(port=0)
+    thread = _t.Thread(target=srv.serve_forever, daemon=True)
+    thread.start()
+    base = f"http://127.0.0.1:{srv.server_address[1]}"
+    try:
+        try:
+            urllib.request.urlopen(base + "/api/state")
+            assert False, "토큰 없이 접속이 허용됨"
+        except urllib.error.HTTPError as e:
+            assert e.code == 401
+
+        with urllib.request.urlopen(base + "/api/state?t=testtoken123") as r:
+            assert json.loads(r.read())["hasVault"] is False
+
+        # 페이지 응답에 쿠키가 실려 이후 요청이 토큰 없이도 통과
+        with urllib.request.urlopen(base + "/?t=testtoken123") as r:
+            assert "h14token=testtoken123" in r.headers.get("Set-Cookie", "")
+
+        req = urllib.request.Request(base + "/api/state",
+                                     headers={"Cookie": "h14token=testtoken123"})
+        with urllib.request.urlopen(req) as r:
+            assert json.loads(r.read())["hasVault"] is False
+    finally:
+        srv.shutdown()
+        thread.join(timeout=2)
+        w.ACCESS_TOKEN = original
+
+
+def test_note_write_is_atomic(vault_path):
+    """Syncthing 대비 — 쓰기 중 임시파일이 남지 않는다."""
+    from health14 import vault as v
+    v.add_member(vault_path, "나", 1978, "M")
+    v.add_checkup(vault_path, "나", 2025, {"체중": 80})
+    leftovers = [p for p in vault_path.rglob(".*.tmp")]
+    assert leftovers == [], f"임시파일 잔존: {leftovers}"

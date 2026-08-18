@@ -59,3 +59,43 @@ def test_export_import_roundtrip(vault_path, tmp_path):
     assert [m["relation"] for m in vault.load_members(new_vault)] == ["나", "딸"]
     checkups = vault.load_checkups(new_vault, "나")
     assert checkups[-1]["metrics"]["체중"] == 80
+
+
+def test_note_cache_reflects_external_edit(vault_path):
+    """옵시디안·Syncthing이 파일을 바꾸면 캐시가 자동 무효화된다."""
+    import time
+    from health14 import vault as v
+
+    v.add_member(vault_path, "나", 1978, "M")
+    path = v.add_checkup(vault_path, "나", 2025, {"체중": 80})
+    assert v.read_note(path)[0]["metrics"]["체중"] == 80
+
+    # 외부 편집 시뮬레이션 (mtime이 확실히 달라지도록 대기)
+    time.sleep(0.01)
+    text = path.read_text(encoding="utf-8").replace("체중: 80", "체중: 85")
+    path.write_text(text, encoding="utf-8")
+    assert v.read_note(path)[0]["metrics"]["체중"] == 85
+
+
+def test_note_cache_does_not_leak_mutations(vault_path):
+    """호출자가 결과를 고쳐도 캐시가 오염되지 않는다."""
+    from health14 import vault as v
+
+    v.add_member(vault_path, "나", 1978, "M")
+    path = v.add_checkup(vault_path, "나", 2025, {"체중": 80})
+    meta, _ = v.read_note(path)
+    meta["metrics"]["체중"] = 999
+    meta["_path"] = "오염"
+    fresh, _ = v.read_note(path)
+    assert fresh["metrics"]["체중"] == 80
+    assert "_path" not in fresh
+
+
+def test_write_note_invalidates_cache(vault_path):
+    from health14 import vault as v
+
+    v.add_member(vault_path, "나", 1978, "M")
+    path = v.add_checkup(vault_path, "나", 2025, {"체중": 80})
+    v.read_note(path)
+    v.add_checkup(vault_path, "나", 2025, {"체중": 82})
+    assert v.read_note(path)[0]["metrics"]["체중"] == 82

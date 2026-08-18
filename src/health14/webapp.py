@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import json
 import mimetypes
+import secrets
 import socket
 import tempfile
 import threading
@@ -23,6 +24,10 @@ from urllib.parse import parse_qs, quote, urlparse
 from health14 import (analysis, anonymize, calendar_index, config, dashboard,
                       export, family_io, insurance, intake, md_io, ocr, parse,
                       relations, share, vault)
+
+
+# --lan 으로 실행할 때만 설정된다. None이면 토큰 검사를 하지 않는다(로컬 전용 모드).
+ACCESS_TOKEN: Optional[str] = None
 
 
 def _app_html() -> str:
@@ -77,6 +82,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        if ACCESS_TOKEN is not None:
+            # 첫 접속 후에는 쿠키로 유지 — 이후 요청 URL에 토큰이 노출되지 않는다
+            self.send_header("Set-Cookie",
+                             f"h14token={ACCESS_TOKEN}; Path=/; SameSite=Strict")
         self.end_headers()
         self.wfile.write(body)
 
@@ -99,9 +108,28 @@ class Handler(BaseHTTPRequestHandler):
 
     # ---------------------------------------------------------------- 라우팅
 
+    def _authorized(self, parsed) -> bool:
+        """--lan 모드에서 1회용 토큰을 확인한다.
+
+        토큰은 최초 접속 시 쿼리(?t=…)로 받고, 이후 요청은 쿠키로 유지한다.
+        """
+        if ACCESS_TOKEN is None:
+            return True
+        token = parse_qs(parsed.query).get("t", [None])[0]
+        if token is None:
+            cookie = self.headers.get("Cookie") or ""
+            for part in cookie.split(";"):
+                name, _, value = part.strip().partition("=")
+                if name == "h14token":
+                    token = value
+                    break
+        return secrets.compare_digest(token or "", ACCESS_TOKEN)
+
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         path = parsed.path
+        if not self._authorized(parsed):
+            return self._error("접근 토큰이 필요합니다. 서버 실행 시 출력된 주소로 접속하세요.", 401)
         try:
             if path in ("/", "/index.html"):
                 self._send_html(_app_html())
@@ -162,6 +190,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
         path = parsed.path
+        if not self._authorized(parsed):
+            return self._error("접근 토큰이 필요합니다.", 401)
         try:
             data = self._read_json()
             if path in ("/api/vault/create", "/api/vault/connect"):
@@ -524,18 +554,51 @@ def _find_port(preferred: int) -> int:
     return preferred
 
 
-def make_server(port: int = 8420) -> ThreadingHTTPServer:
+def make_server(port: int = 8420, host: str = "127.0.0.1") -> ThreadingHTTPServer:
     """port=0 이면 OS가 빈 포트를 자동 할당(테스트용), 그 외에는 사용 가능한 포트를 탐색."""
     bind_port = port if port == 0 else _find_port(port)
-    return ThreadingHTTPServer(("127.0.0.1", bind_port), Handler)
+    return ThreadingHTTPServer((host, bind_port), Handler)
 
 
-def run(port: int = 8420, open_browser: bool = True) -> None:
-    server = make_server(port)
+def _lan_ip() -> str:
+    """이 기기의 LAN/Tailscale IP 추정 (실제 연결은 만들지 않는다)."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("10.255.255.255", 1))
+        return s.getsockname()[0]
+    except OSError:
+        return "127.0.0.1"
+    finally:
+        s.close()
+
+
+def run(port: int = 8420, open_browser: bool = True, lan: bool = False) -> None:
+    """앱 실행.
+
+    기본은 127.0.0.1 전용. `lan=True` 면 0.0.0.0에 바인딩해 같은 네트워크
+    (집 와이파이·Tailscale)의 폰·PC에서 접속할 수 있게 하되, **1회용 토큰**을
+    발급해 URL을 아는 사람만 들어오도록 막는다. 토큰 없이 열리는 실수를 막기 위해
+    토큰은 켜는 순간 무조건 생성된다.
+    """
+    global ACCESS_TOKEN
+    host = "0.0.0.0" if lan else "127.0.0.1"
+    if lan:
+        ACCESS_TOKEN = secrets.token_urlsafe(16)
+
+    server = make_server(port, host)
     actual_port = server.server_address[1]
-    url = f"http://127.0.0.1:{actual_port}/"
-    print(f"14health 앱 실행 중: {url}")
-    print("(로컬 전용 — 외부 접속 불가. 종료하려면 Ctrl+C)")
+
+    if lan:
+        url = f"http://{_lan_ip()}:{actual_port}/?t={ACCESS_TOKEN}"
+        print(f"14health 앱 실행 중 (LAN 공개): {url}")
+        print("  ↑ 이 주소를 폰에서 열면 됩니다. 토큰이 없으면 접속이 거부됩니다.")
+        print("  같은 네트워크(집 와이파이/Tailscale) 안에서만 접근 가능 —")
+        print("  공용 와이파이에서는 --lan 을 쓰지 마세요.")
+    else:
+        url = f"http://127.0.0.1:{actual_port}/"
+        print(f"14health 앱 실행 중: {url}")
+        print("(로컬 전용 — 외부 접속 불가. 종료하려면 Ctrl+C)")
+
     if open_browser:
         threading.Timer(0.4, lambda: webbrowser.open(url)).start()
     try:

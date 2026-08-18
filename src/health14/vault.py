@@ -5,7 +5,9 @@
 """
 from __future__ import annotations
 
+import copy
 import datetime as dt
+import os
 import re
 import urllib.parse
 from pathlib import Path
@@ -29,20 +31,59 @@ KNOWN_RELATIONS = [
 
 # ---------------------------------------------------------------- frontmatter
 
+# 파싱 결과 캐시 — key: 경로, value: (mtime, size, meta, body)
+# vault가 커지면 YAML 파싱이 병목이 된다(노트 2,400개에서 약 1.7초).
+# 파일이 그대로면 다시 파싱하지 않는다. 옵시디안·Syncthing이 바깥에서 파일을
+# 바꿔도 mtime/size가 달라지므로 자동으로 무효화된다.
+_NOTE_CACHE: Dict[Path, Tuple[float, int, Dict[str, Any], str]] = {}
+
+
+def clear_note_cache() -> None:
+    _NOTE_CACHE.clear()
+
+
 def read_note(path: Path) -> Tuple[Dict[str, Any], str]:
-    """노트를 (frontmatter dict, 본문) 으로 읽는다."""
+    """노트를 (frontmatter dict, 본문) 으로 읽는다.
+
+    호출자가 결과를 자유롭게 변형해도 캐시가 오염되지 않도록 복사본을 준다.
+    """
+    try:
+        st = path.stat()
+        cached = _NOTE_CACHE.get(path)
+        if cached and cached[0] == st.st_mtime and cached[1] == st.st_size:
+            return copy.deepcopy(cached[2]), cached[3]
+    except OSError:
+        st = None
+
     text = path.read_text(encoding="utf-8")
     m = re.match(r"^---\n(.*?)\n---\n?", text, re.DOTALL)
     if not m:
         return {}, text
     meta = yaml.safe_load(m.group(1)) or {}
-    return meta, text[m.end():]
+    body = text[m.end():]
+    if st is not None:
+        _NOTE_CACHE[path] = (st.st_mtime, st.st_size, copy.deepcopy(meta), body)
+    return meta, body
 
 
 def write_note(path: Path, meta: Dict[str, Any], body: str) -> None:
+    """노트를 원자적으로 쓴다.
+
+    Syncthing이 vault를 실시간 동기화하는 환경(Tab S9 ↔ 다른 기기)에서
+    부분 기록된 파일이 그대로 전파되면 노트가 깨진다. 임시파일에 다 쓴 뒤
+    os.replace로 교체하면 다른 프로세스는 항상 완전한 파일만 본다.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     front = yaml.safe_dump(meta, allow_unicode=True, sort_keys=False).strip()
-    path.write_text(f"---\n{front}\n---\n\n{body.lstrip()}", encoding="utf-8")
+    content = f"---\n{front}\n---\n\n{body.lstrip()}"
+    tmp = path.with_name(f".{path.name}.tmp")
+    try:
+        tmp.write_text(content, encoding="utf-8")
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+    _NOTE_CACHE.pop(path, None)   # 다음 읽기에서 새로 파싱
 
 
 # ---------------------------------------------------------------- vault 구조

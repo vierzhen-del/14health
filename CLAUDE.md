@@ -45,3 +45,11 @@ CLI는 `pip install -e .` 후 `14health` 명령으로 사용한다.
   추가하지 말 것.
 - **webapp은 얇은 API 레이어**: 새 로직은 CLI 모듈에 넣고 webapp은 호출만 한다. 상세 `docs/webapp.md`.
 - 테스트는 `HEALTH14_CONFIG` 환경변수로 실제 사용자 설정과 격리돼 있다(`tests/conftest.py`).
+- **보험 노트에 증권번호·고객번호 필드를 추가하지 말 것** — `insurance.FIELDS` 화이트리스트
+  밖은 저장되지 않도록 설계돼 있고 테스트가 이를 고정한다.
+- **노트 쓰기는 항상 `vault.write_note()`** — Syncthing 대비 원자적 쓰기(`os.replace`)와
+  파싱 캐시 무효화가 여기 묶여 있다. `path.write_text()` 직접 호출 금지.
+- `vault.read_note()` 는 mtime/size 기반 캐시를 쓴다(노트 2,400개에서 1.7초 → 67ms).
+  결과는 복사본이므로 자유롭게 변형해도 된다.
+- 배포·자동화 문서: `docs/tabs9-배포.md`(Tab S9 proot), `docs/n8n-워크플로우.md`,
+  `docs/아키텍처.md`(APK 검토·성능 실측·외부 API 판정), `docs/APK-로드맵.md`.

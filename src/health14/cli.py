@@ -255,6 +255,42 @@ def cmd_analyze(args) -> int:
     return 0
 
 
+def cmd_recommend(args) -> int:
+    """예방 검진 추천 — 규칙 엔진(오프라인). n8n에서 --json 으로 호출한다."""
+    v = _vault()
+    targets = ([args.relation] if args.relation
+               else [m["relation"] for m in vault.load_members(v)])
+    results = []
+    for relation in targets:
+        report = analysis.build_member_report(v, relation)
+        member = vault.get_member(v, relation) or {}
+        results.append({
+            "relation": relation,
+            "display": relations.display_name(member) if member else relation,
+            "age": report["age"], "stage": report["stage"],
+            "opinion": report["opinion"],
+            "risks": report["risks"],
+            "recommendations": report["recommendations"],
+            "departments": report["departments"],
+            "quarters": report["quarters"],
+        })
+        if args.save:
+            path = analysis.write_analysis_note(v, relation, report)
+            vault.log_action(v, relation, "위험분석", "예방 검진 추천 리포트 생성", path)
+
+    if args.json:
+        print(json.dumps({"results": results, "engine": "규칙 기반(오프라인)"},
+                         ensure_ascii=False))
+        return 0
+    for r in results:
+        print(f"\n[{r['display']} · {r['age']}세 · {r['stage']}]")
+        print(f"  {r['opinion']}")
+        if r["recommendations"]:
+            print("  권장 검진: " + ", ".join(
+                f"{x['name']}({x['interval_years']}년)" for x in r["recommendations"][:6]))
+    return 0
+
+
 def cmd_dashboard(args) -> int:
     v = _vault()
     out = dashboard.generate(v, Path(args.out) if args.out else None)
@@ -330,7 +366,7 @@ def cmd_md(args) -> int:
 
 
 def cmd_app(args) -> int:
-    webapp.run(port=args.port, open_browser=not args.no_browser)
+    webapp.run(port=args.port, open_browser=not args.no_browser, lan=args.lan)
     return 0
 
 
@@ -464,6 +500,12 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("relation")
     sp.set_defaults(func=cmd_analyze)
 
+    sp = sub.add_parser("recommend", help="예방 검진 추천 (규칙 기반, n8n 연동용)")
+    sp.add_argument("relation", nargs="?", help="생략 시 가족 전체")
+    sp.add_argument("--save", action="store_true", help="분석 노트로 저장")
+    sp.add_argument("--json", action="store_true", help="JSON 출력 (n8n 파싱용)")
+    sp.set_defaults(func=cmd_recommend)
+
     sp = sub.add_parser("dashboard", help="시각화 대시보드 HTML 생성")
     sp.add_argument("--out", help="출력 경로 (기본: <vault>/대시보드.html)")
     sp.set_defaults(func=cmd_dashboard)
@@ -496,9 +538,12 @@ def build_parser() -> argparse.ArgumentParser:
     d2.add_argument("--relation", help="관계호칭 (md에 명시가 없을 때)")
     sp.set_defaults(func=cmd_md)
 
-    sp = sub.add_parser("app", help="로컬 웹앱 실행 (브라우저 GUI, 외부 접속 불가)")
+    sp = sub.add_parser("app", help="로컬 웹앱 실행 (기본은 이 기기에서만 접속 가능)")
     sp.add_argument("--port", type=int, default=8420)
     sp.add_argument("--no-browser", action="store_true", help="브라우저 자동 오픈 안 함")
+    sp.add_argument("--lan", action="store_true",
+                    help="같은 네트워크(집 와이파이·Tailscale)의 폰·PC에서 접속 허용. "
+                         "1회용 토큰이 붙은 주소가 출력됩니다.")
     sp.set_defaults(func=cmd_app)
 
     sp = sub.add_parser("log", help="작업 이력 조회 / 노션 동기화")
