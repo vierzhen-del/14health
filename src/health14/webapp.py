@@ -12,6 +12,7 @@ import json
 import mimetypes
 import secrets
 import socket
+import subprocess
 import tempfile
 import threading
 import webbrowser
@@ -597,7 +598,23 @@ def make_server(port: int = 8420, host: str = "127.0.0.1") -> ThreadingHTTPServe
 
 
 def _lan_ip() -> str:
-    """이 기기의 LAN/Tailscale IP 추정 (실제 연결은 만들지 않는다)."""
+    """이 기기의 LAN/Tailscale IP 추정 (실제 연결은 만들지 않는다).
+
+    안드로이드에서 Tailscale이 시스템 VPN(VpnService)으로 동작하면 라우팅
+    테이블의 기본 경로가 tailnet IP가 아니라 VPN 터널 어댑터의 placeholder
+    주소(흔히 192.0.0.2)를 가리켜, 소켓 트릭만으로는 잘못된 주소가 잡힌다.
+    `tailscale` CLI가 있으면 그쪽을 먼저 신뢰한다.
+    """
+    try:
+        result = subprocess.run(
+            ["tailscale", "ip", "-4"],
+            capture_output=True, text=True, timeout=2,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip().splitlines()[0]
+    except (OSError, subprocess.SubprocessError):
+        pass
+
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         s.connect(("10.255.255.255", 1))

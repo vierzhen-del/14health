@@ -53,6 +53,13 @@ Syncthing 폴더 `<Syncthing 폴더명>` 으로 **S23U·S26에 자동 복제**�
 tailnet에 붙은 폰·PC에서 이 주소를 열면 된다. 토큰이 없으면 401이고, 한 번
 열면 쿠키로 유지된다.
 
+> **안드로이드에서 이상한 IP(예: `192.0.0.2`)가 찍히면**: Tailscale이
+> 안드로이드 VPN(VpnService)으로 동작할 때 라우팅 테이블 기본 경로가
+> tailnet IP 대신 VPN 터널 어댑터의 placeholder 주소를 가리킬 수 있다.
+> `14health` 는 `tailscale` CLI가 PATH에 있으면 `tailscale ip -4` 결과를
+> 우선 사용하도록 돼 있다 — 그래도 이상하면 `tailscale ip -4` 를 직접 실행해
+> 나온 주소에 같은 포트·토큰으로 접속하면 된다.
+
 - **공용 와이파이에서는 `--lan` 을 쓰지 말 것** — 같은 네트워크의 아무나 시도할 수 있다.
 - cloudflared 임시 터널(`trycloudflare.com`)로는 **열지 말 것**. 건강 기록이 공개 URL에 놓인다.
 
