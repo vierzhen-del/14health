@@ -54,6 +54,53 @@
 일상적인 입력·조회. **S26은 서버를 켜지 않는다** — Tab S9이 꺼져 있으면 앱
 접속도, n8n 알림도 멈춘다.
 
+## 집 밖 가족 접속 — Tailscale ACL로 8420 포트만 열기
+
+가족 기기를 tailnet에 초대하면 기본적으로 **tailnet 안의 다른 모든 것**(n8n
+포트 5678, SSH 등)에도 닿는다. 14health가 다루는 데이터를 생각하면 가족
+계정은 **Tab S9의 8420 포트(14health 앱)만** 보이게 막아야 한다.
+
+이 설정은 Tailscale 관리 콘솔(`login.tailscale.com/admin/acls`)에서
+직접 해야 한다 — 14health나 이 저장소가 대신 적용할 수 없는, tailnet
+계정 자체의 정책이다.
+
+**1) 관리 콘솔 → Access Controls에 아래 정책을 붙여넣는다** (기존 정책을
+덮어쓰기 전에 원본을 복사해둘 것):
+
+```json
+{
+  "tagOwners": {
+    "tag:14health-server": ["autogroup:admin"],
+    "tag:family":          ["autogroup:admin"]
+  },
+  "acls": [
+    // 내 기기(태그 없는 본인 계정 기기)는 지금처럼 tailnet 전체에 접근
+    {
+      "action": "accept",
+      "src": ["autogroup:member"],
+      "dst": ["*:*"]
+    },
+    // tag:family 로 태그된 기기는 Tab S9의 8420(14health)만 접근 가능
+    {
+      "action": "accept",
+      "src": ["tag:family"],
+      "dst": ["tag:14health-server:8420"]
+    }
+  ]
+}
+```
+
+**2) Machines 목록에서 Tab S9(`galaxy-tab-s9-ultra-5g`, 100.112.74.84)을
+찾아 `…` 메뉴 → Edit ACL tags → `tag:14health-server` 부여.**
+
+**3) 가족 기기가 tailnet에 초대되어 들어오면, 그 기기도 같은 메뉴에서
+`tag:family` 를 부여한다.** 이 순간부터 그 기기는 tailnet 내 다른 서비스
+(n8n 등)에 전혀 닿지 않고, `100.112.74.84:8420` 한 곳만 열린다.
+
+**확인 방법**: 가족 기기에서 `http://100.112.74.84:5678` (n8n)이 접속
+안 되고, `http://100.112.74.84:8420/?t=…` (14health)만 접속되면 정상
+적용된 것이다.
+
 ## 흔한 헷갈림 정리
 
 - **"어디서 실행해야 하나?"** → 서버(앱·n8n)는 항상 Tab S9. S26은 클라이언트일 뿐.
