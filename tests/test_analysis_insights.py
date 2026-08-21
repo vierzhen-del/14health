@@ -174,3 +174,47 @@ def test_masked_에_수치나_항목명이_없다():
     assert re.fullmatch(r"[가-힣 0-9건·]+", s["masked"])
     for word in ("수축기혈압", "공복혈당", "체중", "165", "110", "mmHg"):
         assert word not in s["masked"]
+
+
+# ---------------------------------------------------------------- family_matrix
+
+def _member(relation, tag_status):
+    return {"relation": relation, "display": relation, "tag_status": tag_status}
+
+
+def test_matrix_행과_태그():
+    fm = analysis.family_matrix([
+        _member("나", {"혈압": "주의"}),
+        _member("부인", {"혈당": "위험"}),
+    ])
+    assert "혈압" in fm["tags"] and "혈당" in fm["tags"]
+    row = next(r for r in fm["rows"] if r["relation"] == "나")
+    assert row["status"]["혈압"] == "주의"
+    assert row["status"]["혈당"] == "-"  # 미측정
+
+
+def test_공통_위험은_2명_이상():
+    fm = analysis.family_matrix([
+        _member("나", {"혈압": "주의"}),
+        _member("부인", {"혈압": "위험"}),
+        _member("아들", {}),
+    ])
+    assert fm["common"][0]["tag"] == "혈압"
+    assert fm["common"][0]["count"] == 2
+    assert fm["headline"] == "가족 공통 위험: 혈압 (2명)"
+
+
+def test_한_명만_위험이면_공통_아님():
+    fm = analysis.family_matrix([
+        _member("나", {"혈압": "위험"}),
+        _member("부인", {}),
+    ])
+    assert fm["common"] == [] and fm["headline"] is None
+
+
+def test_관찰은_공통_위험에_포함되지_않음():
+    fm = analysis.family_matrix([
+        _member("나", {"혈당": "관찰"}),
+        _member("부인", {"혈당": "관찰"}),
+    ])
+    assert fm["common"] == []

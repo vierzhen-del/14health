@@ -239,6 +239,12 @@ def build_member_report(vault_path: Path, relation: str,
     insights = series_insights(series, sex)
     highlights = build_highlights(insights, latest)
 
+    # 태그별 표시 상태 — 측정 최악 상태 + 가족력만 있는 태그는 "관찰"
+    tag_display = dict(tag_status)
+    for tag in fh_tags:
+        if tag_display.get(tag, "정상") == "정상":
+            tag_display[tag] = "관찰"
+
     recs = recommend.recommended_checkups(age, sex, family_diseases)
     advice = recommend.lifestyle_advice(age, risk_tags)
     departments = recommend.department_advice(tag_status)
@@ -259,6 +265,7 @@ def build_member_report(vault_path: Path, relation: str,
         "trends": trends,
         "insights": insights,
         "highlights": highlights,
+        "tag_status": tag_display,
         "risks": risks,
         "risk_tags": risk_tags,
         "family_diseases": family_diseases,
@@ -270,6 +277,33 @@ def build_member_report(vault_path: Path, relation: str,
         "opinion": opinion,
         "summary": summary,
     }
+
+
+def family_matrix(members: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """가족 전체 위험 매트릭스 — 구성원 × 위험태그 상태 그리드.
+
+    members 는 build_member_report()(또는 그 payload) 목록.
+    공통 위험 = 2명 이상이 주의 이상인 태그.
+    """
+    tags = list(recommend.reference_ranges()["departments"].keys())
+    rows: List[Dict[str, Any]] = []
+    for m in members:
+        st = m.get("tag_status") or {}
+        rows.append({
+            "relation": m["relation"],
+            "display": m.get("display") or m["relation"],
+            "status": {t: st.get(t, "-") for t in tags},
+        })
+    common: List[Dict[str, Any]] = []
+    for t in tags:
+        hit = [r["relation"] for r in rows
+               if recommend.STATUS_ORDER.get(r["status"][t], -1) >= 1]
+        if len(hit) >= 2:
+            common.append({"tag": t, "count": len(hit), "members": hit})
+    common.sort(key=lambda c: -c["count"])
+    headline = (f"가족 공통 위험: {common[0]['tag']} ({common[0]['count']}명)"
+                if common else None)
+    return {"tags": tags, "rows": rows, "common": common, "headline": headline}
 
 
 def build_summary(age: int, risks: List[Dict[str, Any]],

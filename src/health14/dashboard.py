@@ -17,8 +17,9 @@ from health14 import analysis, recommend, relations, vault
 def _member_payload(report: Dict[str, Any]) -> Dict[str, Any]:
     """build_member_report() 결과에서 대시보드에 필요한 부분만 추림."""
     keys = ["relation", "age", "sex", "birth_year", "stage", "series", "latest",
-            "trends", "insights", "highlights", "risks", "recommendations",
-            "lifestyle", "departments", "quarters", "opinion", "summary"]
+            "trends", "insights", "highlights", "tag_status", "risks",
+            "recommendations", "lifestyle", "departments", "quarters",
+            "opinion", "summary"]
     return {k: report[k] for k in keys}
 
 
@@ -36,6 +37,7 @@ def build_data(vault_path: Path) -> Dict[str, Any]:
     return {
         "generated": dt.date.today().isoformat(),
         "members": members,
+        "family": analysis.family_matrix(members),
         "lifecycle": recommend.lifecycle_stages(),
         "ranges": ranges,
     }

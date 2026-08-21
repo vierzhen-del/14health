@@ -95,6 +95,8 @@ def test_member_and_checkup_flow(server, tmp_path):
     assert m["latest"]["체중"]["value"] == 72
     # 내용 고급화 키가 payload에 노출된다
     assert "insights" in m and "highlights" in m
+    assert "summary" in m and "tag_status" in m
+    assert "family" in data and "rows" in data["family"]
 
 
 def test_data_payload_includes_vault_path(server, tmp_path):

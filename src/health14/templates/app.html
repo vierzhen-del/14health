@@ -72,6 +72,13 @@ ul.plain li:last-child{border-bottom:none}
 .sum-row{display:flex;gap:8px;align-items:baseline;padding:6px 0;font-size:13.5px;border-bottom:1px dashed var(--line)}
 .sum-row:last-child{border-bottom:none}
 .sum-ic{flex:none}
+.fam-headline{font-size:13.5px;font-weight:800;margin-bottom:8px;color:#2c3d5c}
+.fam-table{border-collapse:collapse;width:100%;font-size:12px}
+.fam-table th{color:var(--sub);font-weight:700;padding:4px 6px;text-align:center;white-space:nowrap}
+.fam-table td{padding:4px 6px;text-align:center}
+.fam-table td.fam-name{text-align:left;font-weight:700;white-space:nowrap}
+.fam-dot{display:inline-block;width:12px;height:12px;border-radius:50%}
+.fam-none{color:#c6ceda}
 .lc-band{border-radius:14px;padding:12px 14px;margin-bottom:10px;position:relative}
 .lc-band h4{font-size:15px;font-weight:800;margin-bottom:6px}
 .lc-band ul{list-style:none;font-size:13px;line-height:1.7}
@@ -714,13 +721,23 @@ function lineChart(metric, points, sex){
 
 /* ---------- 홈 ---------- */
 function badge(st){return st?`<span class="badge b-${st}">${st}</span>`:"";}
+function familyCard(){
+  const f=DATA&&DATA.family; if(!f||!f.rows||f.rows.length<2) return "";
+  const head=`<tr><th></th>${f.tags.map(t=>`<th>${esc(t)}</th>`).join("")}</tr>`;
+  const body=f.rows.map(r=>`<tr><td class="fam-name">${esc(r.display||r.relation)}</td>${
+    f.tags.map(t=>{const s=r.status[t];
+      return `<td>${s&&s!=="-"?`<span class="fam-dot" style="background:${S_COLOR[s]}" title="${s}"></span>`:'<span class="fam-none">·</span>'}</td>`;}).join("")}</tr>`).join("");
+  return `<div class="card">
+    ${f.headline?`<div class="fam-headline">👨‍👩‍👧‍👦 ${esc(f.headline)}</div>`:'<div class="fam-headline">👨‍👩‍👧‍👦 가족 위험 한눈에</div>'}
+    <div style="overflow-x:auto"><table class="fam-table">${head}${body}</table></div></div>`;
+}
 function homeCards(){
   const el=document.getElementById("home-cards");
   if(!DATA || !DATA.members.length){
     el.innerHTML=`<div class="card empty">구성원이 없습니다. "입력" 탭에서 먼저 구성원을 등록하세요.</div>`;
     return;
   }
-  el.innerHTML=DATA.members.map(m=>{
+  el.innerHTML=familyCard()+DATA.members.map(m=>{
     const ov=overall(m);
     const bp=(m.latest["수축기혈압"]&&m.latest["이완기혈압"])
       ?`${fmt(m.latest["수축기혈압"].value)}/${fmt(m.latest["이완기혈압"].value)}`:null;
