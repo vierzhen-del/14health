@@ -269,6 +269,7 @@ def cmd_recommend(args) -> int:
             "display": relations.display_name(member) if member else relation,
             "age": report["age"], "stage": report["stage"],
             "opinion": report["opinion"],
+            "summary": report["summary"],
             "risks": report["risks"],
             "recommendations": report["recommendations"],
             "departments": report["departments"],

@@ -65,6 +65,8 @@ return [{ json: { markdown: lines.join('\n'), count: results.length } }];
 ```
 
 텔레그램 메시지는 `{{$json.count}}명 리포트 생성` 처럼 **건수만** 보낸다.
+각 결과의 `summary.masked` 필드("위험 1건 · 주의 2건 · 개선 1건")는 수치·항목명이
+없는 사전 마스킹 요약이라 텔레그램 본문에 그대로 써도 안전하다.
 
 ## 2. 검진 주기 알림
 

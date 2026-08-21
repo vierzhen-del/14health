@@ -245,7 +245,8 @@ def build_member_report(vault_path: Path, relation: str,
     quarters = recommend.quarterly_plan(recs)
     stage = recommend.stage_of(age)
 
-    opinion = _build_opinion(relation, age, risks, departments, trends)
+    summary = build_summary(age, risks, departments, trends, highlights)
+    opinion = " ".join(summary["sentences"])
 
     return {
         "relation": relation,
@@ -267,14 +268,39 @@ def build_member_report(vault_path: Path, relation: str,
         "quarters": quarters,
         "visits": visits,
         "opinion": opinion,
+        "summary": summary,
     }
 
 
-def _build_opinion(relation: str, age: int, risks: List[Dict[str, Any]],
-                   departments: List[Dict[str, str]], trends: Dict[str, str]) -> str:
-    parts: List[str] = []
+def build_summary(age: int, risks: List[Dict[str, Any]],
+                  departments: List[Dict[str, str]], trends: Dict[str, str],
+                  highlights: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """구조화 소견 — 이번 달 하이라이트 3슬롯 + 기존 문장 + 마스킹 요약.
+
+    masked 는 외부(텔레그램 등)로 나가도 되는 건수 요약 — 수치·항목명 없음.
+    """
     danger = [r for r in risks if r["status"] == "위험"]
     caution = [r for r in risks if r["status"] == "주의"]
+
+    top_risk = None
+    if danger or caution:
+        r = (danger or caution)[0]
+        action = (f"{departments[0]['dept']} {departments[0]['cadence']}"
+                  if departments else "생활습관 개선과 추적 관찰")
+        top_risk = {"metric": r["metric"], "status": r["status"], "action": action}
+
+    improvements = [h for h in highlights if h["severity"] == 0]
+    top_improvement = ({"metric": improvements[0]["metric"],
+                        "text": improvements[0]["text"]}
+                       if improvements else None)
+
+    top_action = None
+    if departments:
+        d = departments[0]
+        top_action = f"{d['dept']} 방문 — {d['cadence']}"
+
+    # 기존 종합 소견 문장 (opinion 하위호환)
+    parts: List[str] = []
     if danger:
         parts.append("⚠️ " + ", ".join(r["metric"] for r in danger)
                      + " 항목이 위험 범위입니다. 빠른 진료 상담을 권합니다.")
@@ -290,7 +316,20 @@ def _build_opinion(relation: str, age: int, risks: List[Dict[str, Any]],
         parts.append("최근 " + ", ".join(worsening) + " 수치가 이전 검진 대비 악화 추세입니다.")
     if not parts:
         parts.append(f"현재 등록된 수치는 모두 정상 범위입니다. {age}세 권장 검진 주기를 유지하세요.")
-    return " ".join(parts)
+
+    if danger or caution or improvements:
+        masked = (f"위험 {len(danger)}건 · 주의 {len(caution)}건"
+                  f" · 개선 {len(improvements)}건")
+    else:
+        masked = "특이사항 없음"
+
+    return {
+        "top_risk": top_risk,
+        "top_improvement": top_improvement,
+        "top_action": top_action,
+        "sentences": parts,
+        "masked": masked,
+    }
 
 
 def write_analysis_note(vault_path: Path, relation: str,

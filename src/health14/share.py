@@ -62,9 +62,17 @@ def make_share_card(vault_path: Path, relation: str,
     quarters = report["quarters"]
     q_items = sum(len(v) for v in quarters.values())
 
+    summary = report.get("summary") or {}
+    hl_line = None
+    if summary.get("top_risk"):
+        tr = summary["top_risk"]
+        hl_line = f"⚠ {tr['metric']} {tr['status']} — {tr['action']}"
+    elif summary.get("top_improvement"):
+        hl_line = f"👍 {summary['top_improvement']['text']}"
+
     W = 720
     row_h = 52
-    H = 220 + len(metrics) * row_h + (260 if q_items else 60)
+    H = 220 + (44 if hl_line else 0) + len(metrics) * row_h + (260 if q_items else 60)
     img = Image.new("RGB", (W, H), "#f2f5fa")
     d = ImageDraw.Draw(img)
     f_title, f_bold, f_body = _fonts()
@@ -76,6 +84,11 @@ def make_share_card(vault_path: Path, relation: str,
     d.text((26, 64), f"14health · {today} · 로컬 생성", font=f_body, fill="#dbe6fa")
 
     y = 130
+    if hl_line:
+        color = "#d94f45" if summary.get("top_risk") else "#1a9e5c"
+        d.rounded_rectangle([20, y - 8, W - 20, y + 28], radius=12, fill="#ffffff")
+        d.text((38, y - 1), hl_line[:52], font=f_body, fill=color)
+        y += 44
     d.text((26, y), "최근 검진 수치", font=f_title, fill="#1d2733")
     y += 50
     for name, info in metrics:

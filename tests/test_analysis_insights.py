@@ -126,3 +126,51 @@ def test_심각한_하이라이트가_앞에_온다():
 def test_변화_없으면_하이라이트_없음():
     ins = analysis.series_insights(_series("체중", [(2022, 80.0), (2024, 80.05)]))
     assert analysis.build_highlights(ins, {}) == []
+
+
+# ---------------------------------------------------------------- build_summary
+
+import re
+
+RISK = {"metric": "수축기혈압", "value": 165, "unit": "mmHg", "status": "위험",
+        "label": "높음", "trend": "악화", "family_history": False}
+CAUTION = {"metric": "공복혈당", "value": 110, "unit": "mg/dL", "status": "주의",
+           "label": "경계", "trend": "", "family_history": False}
+DEPT = {"tag": "혈압", "dept": "순환기내과", "status": "위험", "cadence": "즉시 진료 권장"}
+IMP = {"metric": "체중", "kind": "streak_better", "severity": 0,
+       "text": "체중 2회 연속 개선"}
+
+
+def test_summary_top_risk_와_action():
+    s = analysis.build_summary(45, [RISK], [DEPT], {}, [])
+    assert s["top_risk"]["metric"] == "수축기혈압"
+    assert "순환기내과" in s["top_risk"]["action"]
+    assert s["top_action"] == "순환기내과 방문 — 즉시 진료 권장"
+
+
+def test_summary_개선만_있는_경우():
+    s = analysis.build_summary(45, [], [], {}, [IMP])
+    assert s["top_risk"] is None
+    assert s["top_improvement"]["metric"] == "체중"
+    assert s["masked"] == "위험 0건 · 주의 0건 · 개선 1건"
+
+
+def test_summary_모두_정상():
+    s = analysis.build_summary(45, [], [], {}, [])
+    assert s["top_risk"] is None and s["top_improvement"] is None
+    assert s["masked"] == "특이사항 없음"
+    assert "정상 범위" in s["sentences"][0]
+
+
+def test_summary_opinion_문장_호환():
+    s = analysis.build_summary(45, [RISK, CAUTION], [DEPT], {"체중": "악화"}, [])
+    joined = " ".join(s["sentences"])
+    assert "위험 범위" in joined and "주의 범위" in joined and "악화 추세" in joined
+
+
+def test_masked_에_수치나_항목명이_없다():
+    """외부 전송 안전성 핀 — masked 는 건수 요약만 담는다."""
+    s = analysis.build_summary(45, [RISK, CAUTION], [DEPT], {}, [IMP])
+    assert re.fullmatch(r"[가-힣 0-9건·]+", s["masked"])
+    for word in ("수축기혈압", "공복혈당", "체중", "165", "110", "mmHg"):
+        assert word not in s["masked"]

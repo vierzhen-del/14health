@@ -68,6 +68,10 @@ ul.plain li:last-child{border-bottom:none}
 .hl-warn{background:#fbe4e2;color:var(--danger)}
 .hl-good{background:#e2f5ea;color:var(--ok)}
 .hl-one{font-size:12.5px;margin-top:6px;font-weight:600}
+.sum-card{border:1.5px solid var(--line);border-radius:12px;padding:4px 12px;margin-bottom:8px}
+.sum-row{display:flex;gap:8px;align-items:baseline;padding:6px 0;font-size:13.5px;border-bottom:1px dashed var(--line)}
+.sum-row:last-child{border-bottom:none}
+.sum-ic{flex:none}
 .lc-band{border-radius:14px;padding:12px 14px;margin-bottom:10px;position:relative}
 .lc-band h4{font-size:15px;font-weight:800;margin-bottom:6px}
 .lc-band ul{list-style:none;font-size:13px;line-height:1.7}
@@ -133,6 +137,14 @@ let state = { tab:"home", member: (DATA.members[0]||{}).relation };
 
 function esc(s){return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 function member(rel){return DATA.members.find(m=>m.relation===rel);}
+function summarySlots(m){
+  const s=m.summary; if(!s) return "";
+  const rows=[];
+  if(s.top_risk) rows.push(`<div class="sum-row"><span class="sum-ic">⚠️</span><span><b>${esc(s.top_risk.metric)}</b> ${esc(s.top_risk.status)} — ${esc(s.top_risk.action)}</span></div>`);
+  if(s.top_improvement) rows.push(`<div class="sum-row"><span class="sum-ic">👍</span><span>${esc(s.top_improvement.text)}</span></div>`);
+  if(s.top_action) rows.push(`<div class="sum-row"><span class="sum-ic">📌</span><span>${esc(s.top_action)}</span></div>`);
+  return rows.length?`<div class="sum-card">${rows.join("")}</div>`:"";
+}
 function overall(m){
   const order={"정상":0,"관찰":1,"주의":2,"위험":3};
   let worst="정상";
@@ -250,6 +262,7 @@ function memberDetail(){
       <div class="avatar">${AVATAR[m.relation]||"🙂"}</div>
       <div><div class="mc-title">${esc(m.relation)} (${m.age}세 · ${m.sex==="F"?"여":"남"})</div>
       <div class="mc-stage">${esc(m.stage)} · ${m.birth_year}년생</div></div></div>
+      ${summarySlots(m)}
       <div class="opinion">${esc(m.opinion)}</div>
       ${(m.highlights||[]).length?`<div class="hl-list">${m.highlights.slice(0,4).map(h=>
         `<span class="hl-chip ${h.severity>=2?"hl-warn":"hl-good"}">${h.severity>=2?"⚠️":"👍"} ${esc(h.text)}</span>`).join("")}</div>`:""}</div>
