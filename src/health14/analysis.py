@@ -255,6 +255,8 @@ def build_member_report(vault_path: Path, relation: str,
 
     cvd_inputs = riskscore.cvd_inputs(age, sex, latest, profile)
     cvd = riskscore.cvd_score(cvd_inputs)
+    if cvd is not None and not cvd["diabetes_equivalent"]:
+        cvd["whatif"] = riskscore.cvd_whatif(cvd_inputs)
 
     summary = build_summary(age, risks, departments, trends, highlights)
     if summary["top_risk"] is None and cvd and cvd["band"] in ("높음", "매우 높음"):
@@ -491,6 +493,13 @@ def write_analysis_note(vault_path: Path, relation: str,
                          f" (혈관나이 {cvd['heart_age']}세, 실제 {report['age']}세)")
             lines.append(f"- 10년 위험도 {cvd['risk_label']} (참고용 절대값 — "
                          f"동일 연령대 평균은 {cvd['normal_risk_pct']}% 수준)")
+            if cvd.get("whatif"):
+                lines.append("")
+                lines.append("**이렇게 바꾸면 추정치가 낮아집니다:**")
+                for w in cvd["whatif"]:
+                    lines.append(f"- {w['factor']}({w['target']}) 시 위험 "
+                                 f"{w['risk_before']}% → {w['risk_after']}%"
+                                 f" (혈관나이 {w['heart_age_after']}세로)")
         if cvd["assumptions"]:
             lines.append("- 가정: " + "; ".join(cvd["assumptions"]))
         lines.append(f"- {cvd['disclaimer']}")

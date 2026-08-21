@@ -357,6 +357,19 @@ def test_report_는_cvd_필드를_포함(tmp_path):
     assert "profile" in report and report["profile"]["smoking"] is None
 
 
+def test_report_cvd에_whatif가_붙는다(tmp_path):
+    from health14 import analysis as _analysis
+    v = tmp_path / "vault"
+    _vault_mod.init_vault(v)
+    _vault_mod.add_member(v, "나", 1970, "M")
+    _vault_mod.update_profile(v, "나", {"smoking": True})
+    _vault_mod.add_checkup(v, "나", 2025, {
+        "수축기혈압": 140, "총콜레스테롤": 213, "HDL": 50})
+    report = _analysis.build_member_report(v, "나", today=_dt.date(2025, 6, 1))
+    assert "whatif" in report["cvd"]
+    assert any(w["factor"] == "흡연 중단" for w in report["cvd"]["whatif"])
+
+
 def test_수치_부족하면_cvd_는_None(tmp_path):
     from health14 import analysis as _analysis
     v = tmp_path / "vault"

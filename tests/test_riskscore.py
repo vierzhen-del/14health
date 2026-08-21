@@ -117,6 +117,51 @@ def test_결측_수치는_missing에_기록():
     assert riskscore.cvd_score(inputs) is None
 
 
+# ---------------------------------------------------------------- cvd_whatif
+
+def test_흡연자는_흡연중단_옵션이_나온다():
+    wi = riskscore.cvd_whatif(_inputs(smoking=True))
+    factors = [w["factor"] for w in wi]
+    assert "흡연 중단" in factors
+    w = next(w for w in wi if w["factor"] == "흡연 중단")
+    assert w["risk_after"] < w["risk_before"]
+
+
+def test_이미_최적이면_빈_리스트():
+    wi = riskscore.cvd_whatif(_inputs(sbp=110, total_chol=150, hdl=65, smoking=False))
+    assert wi == []
+
+
+def test_당뇨_위험동등물은_whatif_없음():
+    wi = riskscore.cvd_whatif(_inputs(diabetes=True))
+    assert wi == []
+
+
+def test_결측_수치면_whatif_없음():
+    wi = riskscore.cvd_whatif(_inputs(sbp=None))
+    assert wi == []
+
+
+def test_효과_큰_순으로_정렬():
+    wi = riskscore.cvd_whatif(_inputs(sbp=175, total_chol=280, hdl=35, smoking=True))
+    deltas = [w["delta"] for w in wi]
+    assert deltas == sorted(deltas)  # delta는 음수, 가장 작은(효과 큰) 게 먼저
+
+
+def test_whatif는_원본_inputs를_변형하지_않는다():
+    inputs = _inputs(smoking=True)
+    before = dict(inputs)
+    riskscore.cvd_whatif(inputs)
+    assert inputs == before
+
+
+def test_혈압_정상화_옵션():
+    wi = riskscore.cvd_whatif(_inputs(sbp=175))
+    w = next(w for w in wi if w["factor"] == "혈압 정상화")
+    assert w["risk_after"] < w["risk_before"]
+    assert w["heart_age_after"] is not None
+
+
 def test_riskscore_모듈에_가이드라인_숫자_리터럴이_없다():
     """안전핀 — 기준 숫자는 cvd_risk.yaml 에만 있어야 한다.
 

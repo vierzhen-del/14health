@@ -153,3 +153,46 @@ def cvd_score(inputs: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         "assumptions": inputs["assumptions"], "missing": [],
         "note": None, "disclaimer": meta["disclaimer"],
     }
+
+
+def cvd_whatif(inputs: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """조절 가능한 위험요인을 하나씩 목표값으로 바꿨을 때의 효과.
+
+    이미 최적이거나 점수를 계산할 수 없으면 빈 리스트. 위험 감소폭이
+    큰 순으로 정렬한다.
+    """
+    baseline = cvd_score(inputs)
+    if baseline is None or baseline["diabetes_equivalent"]:
+        return []
+    data = _load()
+    targets = data["targets"]
+
+    candidates = []
+    if inputs["smoking"]:
+        candidates.append(("흡연 중단", "흡연", "비흡연", dict(inputs, smoking=False)))
+    if inputs["sbp"] >= targets["sbp"]:
+        label = "혈압 정상화"
+        cur = f"수축기혈압 {inputs['sbp']}"
+        tgt = f"수축기혈압 {targets['sbp']} 미만"
+        candidates.append((label, cur, tgt, dict(inputs, sbp=targets["sbp"])))
+    if inputs["total_chol"] >= targets["total_chol"]:
+        label = "콜레스테롤 개선"
+        cur = f"총콜레스테롤 {inputs['total_chol']}"
+        tgt = f"총콜레스테롤 {targets['total_chol']} 미만"
+        candidates.append((label, cur, tgt, dict(inputs, total_chol=targets["total_chol"])))
+
+    results = []
+    for factor, current, target, modified in candidates:
+        after = cvd_score(modified)
+        if after is None:
+            continue
+        delta = after["risk_pct"] - baseline["risk_pct"]
+        if delta >= 0:
+            continue
+        results.append({
+            "factor": factor, "current": current, "target": target,
+            "risk_before": baseline["risk_pct"], "risk_after": after["risk_pct"],
+            "delta": delta, "heart_age_after": after["heart_age"],
+        })
+    results.sort(key=lambda r: r["delta"])
+    return results
