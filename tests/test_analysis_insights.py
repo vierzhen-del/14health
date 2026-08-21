@@ -218,3 +218,88 @@ def test_관찰은_공통_위험에_포함되지_않음():
         _member("부인", {"혈당": "관찰"}),
     ])
     assert fm["common"] == []
+
+
+# ---------------------------------------------------------------- checkup_compliance
+
+import datetime as _dt
+
+REC_GENERAL = {"name": "일반건강검진", "interval_years": 2,
+               "evidence_metrics": ["수축기혈압", "공복혈당"]}
+REC_ENDO = {"name": "위내시경(위암검진)", "interval_years": 2, "evidence_metrics": []}
+
+
+def test_혈액검사류는_수치_존재로_이행_판정():
+    checkups = [{"year": 2024, "metrics": {"공복혈당": 95}}]
+    comp = analysis.checkup_compliance([REC_GENERAL], checkups, _dt.date(2025, 6, 1))
+    item = comp["items"][0]
+    assert item["last_year"] == 2024 and item["due_year"] == 2026
+    assert item["status"] == "이행"
+
+
+def test_기한_도래_경계():
+    checkups = [{"year": 2024, "metrics": {"공복혈당": 95}}]
+    comp = analysis.checkup_compliance([REC_GENERAL], checkups, _dt.date(2026, 3, 1))
+    assert comp["items"][0]["status"] == "기한 도래"
+    assert comp["items"][0]["dday"] == 0
+
+
+def test_지연_판정과_overdue_목록():
+    checkups = [{"year": 2020, "metrics": {"공복혈당": 95}}]
+    comp = analysis.checkup_compliance([REC_GENERAL], checkups, _dt.date(2026, 1, 1))
+    item = comp["items"][0]
+    assert item["status"] == "지연" and item["dday"] == -4
+    assert comp["overdue"] == [item]
+
+
+def test_기록_없으면_분모에서_제외():
+    comp = analysis.checkup_compliance([REC_GENERAL, REC_ENDO], [], _dt.date(2026, 1, 1))
+    assert all(i["status"] == "기록 없음" for i in comp["items"])
+    assert comp["rate"] is None
+    assert comp["overdue"] == []
+
+
+def test_이행률은_기록있는_항목만_분모():
+    checkups = [{"year": 2024, "metrics": {"공복혈당": 95}}]  # 일반건강검진만 기록
+    comp = analysis.checkup_compliance([REC_GENERAL, REC_ENDO], checkups, _dt.date(2025, 1, 1))
+    # 일반건강검진=이행, 위내시경=기록없음(분모 제외) → 이행률 100%
+    assert comp["rate"] == 100
+
+
+def test_exams_리스트로_비혈액검사_매칭():
+    checkups = [{"year": 2023, "metrics": {}, "exams": ["위내시경"]}]
+    comp = analysis.checkup_compliance([REC_ENDO], checkups, _dt.date(2026, 1, 1))
+    item = comp["items"][0]
+    assert item["last_year"] == 2023 and item["status"] == "지연"
+
+
+def test_가족력_단축_주기가_그대로_반영():
+    rec = {"name": "위내시경(위암검진)", "interval_years": 1, "evidence_metrics": []}
+    checkups = [{"year": 2025, "metrics": {}, "exams": ["위내시경"]}]
+    comp = analysis.checkup_compliance([rec], checkups, _dt.date(2026, 6, 1))
+    assert comp["items"][0]["due_year"] == 2026
+    assert comp["items"][0]["status"] == "기한 도래"
+
+
+def test_최근_기록을_우선한다():
+    checkups = [
+        {"year": 2020, "metrics": {}, "exams": ["위내시경"]},
+        {"year": 2024, "metrics": {}, "exams": ["위내시경"]},
+    ]
+    comp = analysis.checkup_compliance([REC_ENDO], checkups, _dt.date(2025, 1, 1))
+    assert comp["items"][0]["last_year"] == 2024
+
+
+# ---------------------------------------------------------------- vault.add_checkup exams
+
+from health14 import vault as _vault_mod
+
+
+def test_add_checkup_exams_누적_중복제거(tmp_path):
+    v = tmp_path / "vault"
+    _vault_mod.init_vault(v)
+    _vault_mod.add_member(v, "나", 1980, "M")
+    _vault_mod.add_checkup(v, "나", 2025, {"체중": 75}, exams=["위내시경", "대장내시경"])
+    _vault_mod.add_checkup(v, "나", 2025, {}, exams=["위내시경", "유방촬영"])
+    checkups = _vault_mod.load_checkups(v, "나")
+    assert checkups[0]["exams"] == ["위내시경", "대장내시경", "유방촬영"]

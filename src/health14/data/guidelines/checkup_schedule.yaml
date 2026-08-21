@@ -19,6 +19,7 @@ checkups:
     age_min: 20
     interval_years: 2
     detail: 혈압·혈액(혈당·지질·간·신장)·소변·흉부X선 (국가검진, 출생연도 홀짝)
+    evidence_metrics: [수축기혈압, 공복혈당, AST, 총콜레스테롤]
   - name: 구강검진(치과 스케일링)
     sex: all
     age_min: 19
@@ -29,6 +30,7 @@ checkups:
     age_min: 24
     interval_years: 4
     detail: 국가검진 내 포함 (남 24세+)
+    evidence_metrics: [총콜레스테롤, LDL, HDL, 중성지방]
     family_history:
       diseases: [심근경색, 심장질환, 뇌졸중]
       interval_years: 2
@@ -37,6 +39,7 @@ checkups:
     age_min: 40
     interval_years: 4
     detail: 국가검진 내 포함 (여 40세+)
+    evidence_metrics: [총콜레스테롤, LDL, HDL, 중성지방]
     family_history:
       diseases: [심근경색, 심장질환, 뇌졸중]
       interval_years: 2

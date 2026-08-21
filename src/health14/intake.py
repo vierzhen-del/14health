@@ -46,7 +46,9 @@ def apply_checkup(vault_path: Path, relation: str, data: Dict[str, Any]) -> Path
         metrics["BMI"] = round(float(metrics["체중"]) / (h * h), 1)
     memo = anonymize.anonymize(data.get("memo", ""))
     year = int(data["year"])
-    path = vault.add_checkup(vault_path, relation, year, metrics, memo, data.get("date"))
+    exams = [anonymize.anonymize(e) for e in (data.get("exams") or []) if e]
+    path = vault.add_checkup(vault_path, relation, year, metrics, memo,
+                             data.get("date"), exams)
     vault.log_action(vault_path, relation, "검진입력", f"{year} 건강검진 입력", path)
     return path
 

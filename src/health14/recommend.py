@@ -95,6 +95,7 @@ def recommended_checkups(age: int, sex: str,
             "interval_years": interval,
             "detail": note,
             "family_history": fh_hit,
+            "evidence_metrics": item.get("evidence_metrics") or [],
         })
     return result
 

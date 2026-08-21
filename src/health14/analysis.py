@@ -246,6 +246,7 @@ def build_member_report(vault_path: Path, relation: str,
             tag_display[tag] = "관찰"
 
     recs = recommend.recommended_checkups(age, sex, family_diseases)
+    compliance = checkup_compliance(recs, checkups, today)
     advice = recommend.lifestyle_advice(age, risk_tags)
     departments = recommend.department_advice(tag_status)
     quarters = recommend.quarterly_plan(recs)
@@ -270,6 +271,7 @@ def build_member_report(vault_path: Path, relation: str,
         "risk_tags": risk_tags,
         "family_diseases": family_diseases,
         "recommendations": recs,
+        "compliance": compliance,
         "lifestyle": advice,
         "departments": departments,
         "quarters": quarters,
@@ -277,6 +279,53 @@ def build_member_report(vault_path: Path, relation: str,
         "opinion": opinion,
         "summary": summary,
     }
+
+
+def checkup_compliance(recs: List[Dict[str, Any]], checkups: List[Dict[str, Any]],
+                       today: Optional[dt.date] = None) -> Dict[str, Any]:
+    """권장 검진 항목별 이행 현황 — 최근 시행연도를 검진 노트에서 추정.
+
+    혈액검사류(evidence_metrics 있는 항목)는 관련 수치 존재로 추정하고,
+    그 외(내시경·촬영·접종 등)는 검진 노트의 exams 리스트 부분일치로 찾는다.
+    "기록 없음"은 이행률 분모에서 제외한다 — 정직한 프레이밍.
+    """
+    today = today or dt.date.today()
+    checkups_desc = sorted(checkups, key=lambda c: c.get("year") or 0, reverse=True)
+    items: List[Dict[str, Any]] = []
+    for rec in recs:
+        name = rec["name"]
+        interval = rec["interval_years"]
+        evidence = rec.get("evidence_metrics") or []
+        core = name.split("(")[0].strip()
+        last_year = None
+        for c in checkups_desc:
+            if evidence:
+                hit = any(m in (c.get("metrics") or {}) for m in evidence)
+            else:
+                hit = any(core in e or e in core for e in (c.get("exams") or []))
+            if hit:
+                last_year = c.get("year")
+                break
+        due_year = (last_year + interval) if last_year is not None else None
+        if last_year is None:
+            status = "기록 없음"
+        elif due_year > today.year:
+            status = "이행"
+        elif due_year == today.year:
+            status = "기한 도래"
+        else:
+            status = "지연"
+        items.append({
+            "name": name, "interval_years": interval,
+            "last_year": last_year, "due_year": due_year,
+            "status": status,
+            "dday": (due_year - today.year) if due_year is not None else None,
+        })
+    known = [i for i in items if i["status"] != "기록 없음"]
+    fulfilled = [i for i in known if i["status"] == "이행"]
+    rate = round(100 * len(fulfilled) / len(known)) if known else None
+    overdue = [i for i in items if i["status"] == "지연"]
+    return {"items": items, "rate": rate, "overdue": overdue}
 
 
 def family_matrix(members: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -416,6 +465,19 @@ def write_analysis_note(vault_path: Path, relation: str,
         lines.append(f"- {rec['name']} — {rec['interval_years']}년 주기{fh}"
                      + (f" · {rec['detail']}" if rec.get("detail") else ""))
     lines.append("")
+
+    comp = report.get("compliance") or {}
+    if comp.get("items"):
+        rate = comp.get("rate")
+        lines.append("## 검진 이행 현황"
+                     + (f" (이행률 {rate}%)" if rate is not None else ""))
+        lines.append("")
+        lines.append("| 항목 | 최근 시행 | 다음 예정 | 상태 |")
+        lines.append("|---|---|---|---|")
+        for it in comp["items"]:
+            lines.append(f"| {it['name']} | {it['last_year'] or '-'} "
+                         f"| {it['due_year'] or '-'} | {it['status']} |")
+        lines.append("")
 
     lines.append("## 향후 1년 검진 계획")
     lines.append("")

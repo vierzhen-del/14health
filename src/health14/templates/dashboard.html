@@ -270,6 +270,10 @@ function memberDetail(){
       ${badge(r.status)}</div>`).join("");
   const recs=(m.recommendations||[]).map(r=>
     `<li>${r.family_history?"⭐ ":""}${esc(r.name)} — ${r.interval_years}년 주기</li>`).join("");
+  const comp=m.compliance||{};
+  const compBadge=comp.rate!=null?`<span class="badge b-${comp.rate>=70?"정상":comp.rate>=40?"주의":"위험"}">이행률 ${comp.rate}%</span>`:"";
+  const overdue=(comp.overdue||[]).map(o=>
+    `<li>⏰ ${esc(o.name)} — ${Math.abs(o.dday)}년 지연 (마지막 ${o.last_year}년)</li>`).join("");
   const life=[...(m.lifestyle.risk||[]).map(a=>`<li>💡 ${esc(a)}</li>`),
               ...(m.lifestyle.age_band||[]).map(a=>`<li>${esc(a)}</li>`)].join("");
   const depts=(m.departments||[]).map(d=>
@@ -286,8 +290,9 @@ function memberDetail(){
     <div class="card"><h3 style="font-size:14px;margin-bottom:6px">주요 질병 위험도</h3>
       ${risks||'<div class="empty">위험 요인이 없습니다 👍</div>'}</div>
     ${charts}
-    <div class="card"><h3 style="font-size:14px;margin-bottom:6px">추천 검진 항목</h3>
-      <ul class="plain">${recs||'<li class="empty">해당 없음</li>'}</ul></div>
+    <div class="card"><h3 style="font-size:14px;margin-bottom:6px">추천 검진 항목 ${compBadge}</h3>
+      <ul class="plain">${recs||'<li class="empty">해당 없음</li>'}</ul>
+      ${overdue?`<ul class="plain">${overdue}</ul>`:""}</div>
     ${depts?`<div class="card"><h3 style="font-size:14px;margin-bottom:6px">추천 병원·진료 주기</h3><ul class="plain">${depts}</ul></div>`:""}
     <div class="card"><h3 style="font-size:14px;margin-bottom:6px">생활습관 권고</h3>
       <ul class="plain">${life}</ul></div>

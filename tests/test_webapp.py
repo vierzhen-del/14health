@@ -97,6 +97,7 @@ def test_member_and_checkup_flow(server, tmp_path):
     assert "insights" in m and "highlights" in m
     assert "summary" in m and "tag_status" in m
     assert "family" in data and "rows" in data["family"]
+    assert "compliance" in m and "items" in m["compliance"]
 
 
 def test_data_payload_includes_vault_path(server, tmp_path):

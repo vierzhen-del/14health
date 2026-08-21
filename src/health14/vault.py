@@ -195,25 +195,34 @@ def checkup_path(vault: Path, relation: str, year: int) -> Path:
 
 def add_checkup(vault: Path, relation: str, year: int,
                 metrics: Dict[str, Any], memo: str = "",
-                date: Optional[str] = None) -> Path:
+                date: Optional[str] = None,
+                exams: Optional[List[str]] = None) -> Path:
     if get_member(vault, relation) is None:
         raise SystemExit(f"등록되지 않은 구성원입니다: {relation} (14health member add 먼저 실행)")
     path = checkup_path(vault, relation, year)
     existing: Dict[str, Any] = {}
+    existing_exams: List[str] = []
     body_memo = memo
     if path.exists():
         meta, _ = read_note(path)
         existing = dict(meta.get("metrics") or {})
+        existing_exams = list(meta.get("exams") or [])
     existing.update(metrics)
+    for e in (exams or []):
+        if e not in existing_exams:
+            existing_exams.append(e)
     meta = {
         "type": "checkup",
         "member": relation,
         "year": year,
         "date": date or f"{year}-01-01",
         "metrics": existing,
+        "exams": existing_exams,
     }
     rows = "\n".join(f"| {k} | {v} |" for k, v in existing.items())
     body = f"# {relation} {year} 건강검진\n\n| 항목 | 수치 |\n|---|---|\n{rows}\n"
+    if existing_exams:
+        body += "\n## 시행 검진 항목\n\n" + "\n".join(f"- {e}" for e in existing_exams) + "\n"
     if body_memo:
         body += f"\n## 메모\n\n{body_memo}\n"
     write_note(path, meta, body)
