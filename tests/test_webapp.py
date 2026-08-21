@@ -98,6 +98,18 @@ def test_member_and_checkup_flow(server, tmp_path):
     assert "summary" in m and "tag_status" in m
     assert "family" in data and "rows" in data["family"]
     assert "compliance" in m and "items" in m["compliance"]
+    assert "cvd" in m and "profile" in m
+
+
+def test_profile_endpoint_roundtrip(server, tmp_path):
+    new_path = tmp_path / "v3"
+    _post(server, "/api/vault/create", {"path": str(new_path)})
+    _post(server, "/api/member", {"relation": "나", "birth": 1978, "sex": "M"})
+    res = _post(server, "/api/profile", {"relation": "나", "smoking": True, "bp_treated": False})
+    assert res["ok"] is True
+    data = _get(server, "/api/data")
+    prof = data["members"][0]["profile"]
+    assert prof["smoking"] is True and prof["bp_treated"] is False
 
 
 def test_data_payload_includes_vault_path(server, tmp_path):

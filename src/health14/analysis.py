@@ -10,7 +10,7 @@ import datetime as dt
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from health14 import recommend, vault
+from health14 import recommend, riskscore, vault
 
 CORE_METRICS = [
     "수축기혈압", "이완기혈압", "공복혈당", "식후혈당", "당화혈색소",
@@ -156,6 +156,7 @@ def build_member_report(vault_path: Path, relation: str,
     checkups = vault.load_checkups(vault_path, relation)
     visits = vault.load_visits(vault_path, relation)
     family_diseases = [h["disease"] for h in vault.load_family_history(vault_path)]
+    profile = vault.load_profile(vault_path, relation)
 
     # 연도별 시계열
     series: Dict[str, List[Dict[str, Any]]] = {}
@@ -252,7 +253,17 @@ def build_member_report(vault_path: Path, relation: str,
     quarters = recommend.quarterly_plan(recs)
     stage = recommend.stage_of(age)
 
+    cvd_inputs = riskscore.cvd_inputs(age, sex, latest, profile)
+    cvd = riskscore.cvd_score(cvd_inputs)
+
     summary = build_summary(age, risks, departments, trends, highlights)
+    if summary["top_risk"] is None and cvd and cvd["band"] in ("높음", "매우 높음"):
+        cvd_action = ("순환기내과 상담 권장" if cvd["diabetes_equivalent"]
+                      else f"혈관나이 {cvd['heart_age']}세 — 순환기내과 상담 권장")
+        summary["top_risk"] = {"metric": "심혈관 위험", "status": cvd["band"],
+                               "action": cvd_action}
+        summary["masked"] = ("위험 1건 · " + summary["masked"]
+                             if summary["masked"] != "특이사항 없음" else "위험 1건")
     opinion = " ".join(summary["sentences"])
 
     return {
@@ -267,11 +278,14 @@ def build_member_report(vault_path: Path, relation: str,
         "insights": insights,
         "highlights": highlights,
         "tag_status": tag_display,
+        "profile": {"smoking": profile.get("smoking"),
+                   "bp_treated": profile.get("bp_treated")},
         "risks": risks,
         "risk_tags": risk_tags,
         "family_diseases": family_diseases,
         "recommendations": recs,
         "compliance": compliance,
+        "cvd": cvd,
         "lifestyle": advice,
         "departments": departments,
         "quarters": quarters,
@@ -465,6 +479,22 @@ def write_analysis_note(vault_path: Path, relation: str,
         lines.append(f"- {rec['name']} — {rec['interval_years']}년 주기{fh}"
                      + (f" · {rec['detail']}" if rec.get("detail") else ""))
     lines.append("")
+
+    cvd = report.get("cvd")
+    if cvd:
+        lines.append("## 심혈관 위험(참고)")
+        lines.append("")
+        if cvd["diabetes_equivalent"]:
+            lines.append(f"- {cvd['note']}")
+        else:
+            lines.append(f"- 같은 나이·성별 최적 상태 대비 약 {cvd['relative']}배"
+                         f" (혈관나이 {cvd['heart_age']}세, 실제 {report['age']}세)")
+            lines.append(f"- 10년 위험도 {cvd['risk_label']} (참고용 절대값 — "
+                         f"동일 연령대 평균은 {cvd['normal_risk_pct']}% 수준)")
+        if cvd["assumptions"]:
+            lines.append("- 가정: " + "; ".join(cvd["assumptions"]))
+        lines.append(f"- {cvd['disclaimer']}")
+        lines.append("")
 
     comp = report.get("compliance") or {}
     if comp.get("items"):

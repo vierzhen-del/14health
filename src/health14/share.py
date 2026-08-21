@@ -70,9 +70,17 @@ def make_share_card(vault_path: Path, relation: str,
     elif summary.get("top_improvement"):
         hl_line = f"👍 {summary['top_improvement']['text']}"
 
+    cvd = report.get("cvd")
+    cvd_line = None
+    if cvd and not cvd.get("diabetes_equivalent"):
+        cvd_line = (f"혈관나이 {cvd['heart_age']}세 (실제 +{cvd['heart_age_gap']}) "
+                    f"· 위험구간 {cvd['band']}" if cvd["heart_age_gap"] > 0
+                    else f"혈관나이 {cvd['heart_age']}세 · 위험구간 {cvd['band']}")
+
     W = 720
     row_h = 52
-    H = 220 + (44 if hl_line else 0) + len(metrics) * row_h + (260 if q_items else 60)
+    H = (220 + (44 if hl_line else 0) + (30 if cvd_line else 0)
+        + len(metrics) * row_h + (260 if q_items else 60))
     img = Image.new("RGB", (W, H), "#f2f5fa")
     d = ImageDraw.Draw(img)
     f_title, f_bold, f_body = _fonts()
@@ -89,6 +97,9 @@ def make_share_card(vault_path: Path, relation: str,
         d.rounded_rectangle([20, y - 8, W - 20, y + 28], radius=12, fill="#ffffff")
         d.text((38, y - 1), hl_line[:52], font=f_body, fill=color)
         y += 44
+    if cvd_line:
+        d.text((26, y), f"❤ {cvd_line}", font=f_body, fill="#4a7bd0")
+        y += 30
     d.text((26, y), "최근 검진 수치", font=f_title, fill="#1d2733")
     y += 50
     for name, info in metrics:

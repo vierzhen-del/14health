@@ -144,6 +144,20 @@ let state = { tab:"home", member: (DATA.members[0]||{}).relation };
 
 function esc(s){return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 function member(rel){return DATA.members.find(m=>m.relation===rel);}
+function cvdCard(m){
+  const c=m.cvd; if(!c) return "";
+  const body=c.diabetes_equivalent
+    ? `<div class="empty">${esc(c.note)}</div>`
+    : `<div style="font-size:22px;font-weight:800">혈관나이 ${c.heart_age}세
+        <span style="font-size:13px;font-weight:600;color:var(--sub)">(실제 ${m.age}세${c.heart_age_gap>0?", +"+c.heart_age_gap:""})</span></div>
+      <div style="font-size:13.5px;margin-top:4px">같은 나이·성별 최적 상태 대비 약 <b>${c.relative}배</b> ·
+        <span class="badge b-${c.band==="낮음"?"정상":c.band==="보통"?"관찰":c.band==="높음"?"주의":"위험"}">${esc(c.band)}</span></div>
+      <div class="mc-stage" style="margin-top:4px">10년 위험도(참고용) ${esc(c.risk_label)} — 동일 연령대 평균 ${c.normal_risk_pct}% 수준</div>
+      ${(c.whatif&&c.whatif.length)?`<ul class="plain">${c.whatif.map(w=>
+        `<li>💡 ${esc(w.factor)} — 위험 ${w.risk_before}% → ${w.risk_after}%</li>`).join("")}</ul>`:""}`;
+  return `<div class="card"><h3 style="font-size:14px;margin-bottom:6px">심혈관 위험(참고)</h3>
+    ${body}<div class="mc-stage">${esc(c.disclaimer)}</div></div>`;
+}
 function summarySlots(m){
   const s=m.summary; if(!s) return "";
   const rows=[];
@@ -293,6 +307,7 @@ function memberDetail(){
     <div class="card"><h3 style="font-size:14px;margin-bottom:6px">추천 검진 항목 ${compBadge}</h3>
       <ul class="plain">${recs||'<li class="empty">해당 없음</li>'}</ul>
       ${overdue?`<ul class="plain">${overdue}</ul>`:""}</div>
+    ${cvdCard(m)}
     ${depts?`<div class="card"><h3 style="font-size:14px;margin-bottom:6px">추천 병원·진료 주기</h3><ul class="plain">${depts}</ul></div>`:""}
     <div class="card"><h3 style="font-size:14px;margin-bottom:6px">생활습관 권고</h3>
       <ul class="plain">${life}</ul></div>

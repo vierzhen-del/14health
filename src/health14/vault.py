@@ -187,6 +187,42 @@ def age_of(member: Dict[str, Any], today: Optional[dt.date] = None) -> int:
     return max(0, today.year - int(member["birth_year"]))
 
 
+def profile_path(vault: Path, relation: str) -> Path:
+    return vault / MEMBERS_DIR / relation / "프로필.md"
+
+
+def load_profile(vault: Path, relation: str) -> Dict[str, Any]:
+    """구성원 프로필 frontmatter (없으면 {})."""
+    path = profile_path(vault, relation)
+    if not path.exists():
+        return {}
+    meta, _ = read_note(path)
+    return meta
+
+
+def update_profile(vault: Path, relation: str, fields: Dict[str, Any]) -> Path:
+    """프로필 필드 갱신 (smoking·bp_treated 등) — 원자적 쓰기.
+
+    fields 의 값이 None 인 키는 "미확인"으로 남겨두고 건드리지 않는다.
+    """
+    if get_member(vault, relation) is None:
+        raise SystemExit(f"등록되지 않은 구성원입니다: {relation}")
+    path = profile_path(vault, relation)
+    meta, body = read_note(path) if path.exists() else (
+        {"type": "profile", "member": relation, "conditions": [], "medications": []}, "")
+    for k, v in fields.items():
+        if v is not None:
+            meta[k] = v
+    if not body:
+        member = get_member(vault, relation) or {}
+        label = member.get("display") or relation
+        body = (f"# {label} 프로필\n\n- 관계: {relation}\n"
+               f"- 출생연도: {member.get('birth_year', '-')}\n"
+               f"- 성별: {member.get('sex', '-')}\n")
+    write_note(path, meta, body)
+    return path
+
+
 # ---------------------------------------------------------------- 검진 노트
 
 def checkup_path(vault: Path, relation: str, year: int) -> Path:

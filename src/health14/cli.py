@@ -86,6 +86,16 @@ def cmd_member(args) -> int:
             print(f"- {label}{extra} — {m['relation']}, {m.get('birth_year')}년생, "
                   f"{m.get('sex')}, {vault.age_of(m)}세")
         return 0
+    if args.action == "profile":
+        fields = {}
+        if args.smoking is not None:
+            fields["smoking"] = args.smoking == "y"
+        if args.bp_med is not None:
+            fields["bp_treated"] = args.bp_med == "y"
+        vault.update_profile(v, args.relation, fields)
+        vault.log_action(v, args.relation, "프로필수정", "건강 프로필 갱신")
+        print(f"프로필 갱신 완료: {args.relation}")
+        return 0
     relation = args.relation
     info = relations.relation_info(relation)
     category = args.category or info["category"]
@@ -484,6 +494,10 @@ def build_parser() -> argparse.ArgumentParser:
     m1.add_argument("--display", help="화면 표시명 (기본: 관계호칭)")
     m1.add_argument("--name", help="영수증 자동매칭용 실명 (로컬 설정에만 저장)")
     msub.add_parser("list", help="구성원 목록")
+    m3 = msub.add_parser("profile", help="건강 프로필 갱신 (흡연·혈압약 등 — 심혈관 위험점수용)")
+    m3.add_argument("relation", help="관계호칭")
+    m3.add_argument("--smoking", choices=["y", "n"], help="현재 흡연 여부")
+    m3.add_argument("--bp-med", choices=["y", "n"], help="혈압약 복용 여부")
     sp.set_defaults(func=cmd_member)
 
     sp = sub.add_parser("family", help="가족정보 JSON 내보내기/가져오기")

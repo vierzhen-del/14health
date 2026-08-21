@@ -199,6 +199,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._handle_vault_setup(data)
             elif path == "/api/member":
                 self._handle_member(data)
+            elif path == "/api/profile":
+                self._handle_profile(data)
             elif path == "/api/history":
                 self._handle_history(data)
             elif path == "/api/note":
@@ -268,6 +270,22 @@ class Handler(BaseHTTPRequestHandler):
         if real_name:
             config.add_alias(real_name, relation)
         self._send_json({"ok": True, "aliasAdded": bool(real_name)})
+
+    def _handle_profile(self, data: Dict[str, Any]) -> None:
+        v = self._require_vault()
+        if not v:
+            return
+        relation = (data.get("relation") or "").strip()
+        if not relation:
+            return self._error("관계호칭을 입력하세요.")
+        fields = {}
+        if "smoking" in data and data["smoking"] is not None:
+            fields["smoking"] = bool(data["smoking"])
+        if "bp_treated" in data and data["bp_treated"] is not None:
+            fields["bp_treated"] = bool(data["bp_treated"])
+        vault.update_profile(v, relation, fields)
+        vault.log_action(v, relation, "프로필수정", "건강 프로필 갱신")
+        self._send_json({"ok": True})
 
     def _handle_history(self, data: Dict[str, Any]) -> None:
         v = self._require_vault()

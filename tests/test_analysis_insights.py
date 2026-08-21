@@ -303,3 +303,65 @@ def test_add_checkup_exams_누적_중복제거(tmp_path):
     _vault_mod.add_checkup(v, "나", 2025, {}, exams=["위내시경", "유방촬영"])
     checkups = _vault_mod.load_checkups(v, "나")
     assert checkups[0]["exams"] == ["위내시경", "대장내시경", "유방촬영"]
+
+
+# ---------------------------------------------------------------- vault profile
+
+def test_load_profile_없으면_빈딕셔너리(tmp_path):
+    v = tmp_path / "vault"
+    _vault_mod.init_vault(v)
+    _vault_mod.add_member(v, "나", 1980, "M")
+    prof = _vault_mod.load_profile(v, "나")
+    # add_member 가 프로필.md 를 만들어두므로 conditions/medications 키는 있다
+    assert prof.get("smoking") is None and prof.get("bp_treated") is None
+
+
+def test_update_profile_라운드트립(tmp_path):
+    v = tmp_path / "vault"
+    _vault_mod.init_vault(v)
+    _vault_mod.add_member(v, "나", 1980, "M")
+    _vault_mod.update_profile(v, "나", {"smoking": True, "bp_treated": False})
+    prof = _vault_mod.load_profile(v, "나")
+    assert prof["smoking"] is True and prof["bp_treated"] is False
+
+
+def test_update_profile_None값은_건드리지_않는다(tmp_path):
+    v = tmp_path / "vault"
+    _vault_mod.init_vault(v)
+    _vault_mod.add_member(v, "나", 1980, "M")
+    _vault_mod.update_profile(v, "나", {"smoking": True})
+    _vault_mod.update_profile(v, "나", {"smoking": None, "bp_treated": True})
+    prof = _vault_mod.load_profile(v, "나")
+    assert prof["smoking"] is True and prof["bp_treated"] is True
+
+
+def test_update_profile_미등록_구성원은_거부(tmp_path):
+    v = tmp_path / "vault"
+    _vault_mod.init_vault(v)
+    with pytest.raises(SystemExit):
+        _vault_mod.update_profile(v, "나", {"smoking": True})
+
+
+# ---------------------------------------------------------------- cvd glue in build_member_report
+
+def test_report_는_cvd_필드를_포함(tmp_path):
+    from health14 import analysis as _analysis
+    v = tmp_path / "vault"
+    _vault_mod.init_vault(v)
+    _vault_mod.add_member(v, "나", 1970, "M")
+    _vault_mod.add_checkup(v, "나", 2025, {
+        "수축기혈압": 140, "총콜레스테롤": 213, "HDL": 50})
+    report = _analysis.build_member_report(v, "나", today=_dt.date(2025, 6, 1))
+    assert report["cvd"] is not None
+    assert report["cvd"]["risk_pct"] is not None
+    assert "profile" in report and report["profile"]["smoking"] is None
+
+
+def test_수치_부족하면_cvd_는_None(tmp_path):
+    from health14 import analysis as _analysis
+    v = tmp_path / "vault"
+    _vault_mod.init_vault(v)
+    _vault_mod.add_member(v, "나", 1970, "M")
+    _vault_mod.add_checkup(v, "나", 2025, {"체중": 75})
+    report = _analysis.build_member_report(v, "나", today=_dt.date(2025, 6, 1))
+    assert report["cvd"] is None

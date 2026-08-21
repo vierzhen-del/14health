@@ -1,0 +1,177 @@
+# 10년 관상동맥질환(CHD) 위험도 — Framingham 포인트표
+#
+# 출처: Wilson PWF, D'Agostino RB, Levy D, et al. "Prediction of coronary
+# heart disease using risk factor categories." Circulation. 1998;97:1837-1847.
+# NCEP ATP III(2001) 데스크탑 참조표로 채택된 판. 대상 연령 20~79세.
+#
+# 검증: raw.githubusercontent.com/videntity/python-framingham10yr 코드
+# 구현과 대조해 모든 포인트·위험% 값을 교차검증했다 (meta.worked_example 참조).
+#
+# 이 코드베이스 관례(reference_ranges.yaml)와 동일하게 `up_to` 는
+# "값이 이 숫자 미만이면 이 구간" (v < up_to) 을 뜻한다.
+meta:
+  name: Framingham 10년 관상동맥질환(CHD) 위험도
+  age_min: 20
+  age_max: 79
+  diabetes_note: >-
+    ATP III 기준상 당뇨병은 "관상동맥질환 위험동등물"로 분류되어
+    별도 점수 계산 없이 고위험군(10년 위험 20% 이상 상당)으로 판정합니다.
+  disclaimer: >-
+    규칙 기반 참고 정보이며 의학적 진단이 아닙니다. 인구집단 통계
+    모델의 추정치로 개인의 실제 위험과 차이가 있을 수 있습니다.
+  worked_example:
+    # 검증용 예시 — 코드 테스트가 이 입력→출력을 그대로 고정한다.
+    sex: M
+    age: 55
+    total_chol: 213
+    hdl: 50
+    sbp: 140
+    bp_treated: false
+    smoking: false
+    expected_points: 12
+    expected_risk_pct: 10
+
+# 연령대 구분 (콜레스테롤·흡연 표에서 공유) — up_to 규약
+age_groups:
+  - { up_to: 40, key: "20-39" }
+  - { up_to: 50, key: "40-49" }
+  - { up_to: 60, key: "50-59" }
+  - { up_to: 70, key: "60-69" }
+  - { key: "70-79" }
+
+# 혈관나이 계산 시 사용하는 각 연령대의 대표 나이(밴드 상한-2, 즉 중앙값 근사)
+age_band_ranges:
+  - { up_to: 35, min: 20, max: 34 }
+  - { up_to: 40, min: 35, max: 39 }
+  - { up_to: 45, min: 40, max: 44 }
+  - { up_to: 50, min: 45, max: 49 }
+  - { up_to: 55, min: 50, max: 54 }
+  - { up_to: 60, min: 55, max: 59 }
+  - { up_to: 65, min: 60, max: 64 }
+  - { up_to: 70, min: 65, max: 69 }
+  - { up_to: 75, min: 70, max: 74 }
+  - { min: 75, max: 79 }
+
+models:
+  M:
+    age:
+      - { up_to: 35, pts: -9 }
+      - { up_to: 40, pts: -4 }
+      - { up_to: 45, pts: 0 }
+      - { up_to: 50, pts: 3 }
+      - { up_to: 55, pts: 6 }
+      - { up_to: 60, pts: 8 }
+      - { up_to: 65, pts: 10 }
+      - { up_to: 70, pts: 12 }
+      - { up_to: 75, pts: 14 }
+      - { pts: 16 }
+    chol_by_age:
+      "20-39": [{ up_to: 160, pts: 0 }, { up_to: 200, pts: 4 }, { up_to: 240, pts: 7 }, { up_to: 280, pts: 9 }, { pts: 11 }]
+      "40-49": [{ up_to: 160, pts: 0 }, { up_to: 200, pts: 3 }, { up_to: 240, pts: 5 }, { up_to: 280, pts: 6 }, { pts: 8 }]
+      "50-59": [{ up_to: 160, pts: 0 }, { up_to: 200, pts: 2 }, { up_to: 240, pts: 3 }, { up_to: 280, pts: 4 }, { pts: 5 }]
+      "60-69": [{ up_to: 160, pts: 0 }, { up_to: 200, pts: 1 }, { up_to: 240, pts: 1 }, { up_to: 280, pts: 2 }, { pts: 3 }]
+      "70-79": [{ up_to: 160, pts: 0 }, { up_to: 200, pts: 0 }, { up_to: 240, pts: 0 }, { up_to: 280, pts: 1 }, { pts: 1 }]
+    smoker_by_age:
+      "20-39": 8
+      "40-49": 5
+      "50-59": 3
+      "60-69": 1
+      "70-79": 1
+    hdl:
+      - { up_to: 40, pts: 2 }
+      - { up_to: 50, pts: 1 }
+      - { up_to: 60, pts: 0 }
+      - { pts: -1 }
+    sbp_untreated:
+      - { up_to: 120, pts: 0 }
+      - { up_to: 130, pts: 0 }
+      - { up_to: 140, pts: 1 }
+      - { up_to: 160, pts: 1 }
+      - { pts: 2 }
+    sbp_treated:
+      - { up_to: 120, pts: 0 }
+      - { up_to: 130, pts: 1 }
+      - { up_to: 140, pts: 1 }
+      - { up_to: 160, pts: 2 }
+      - { pts: 3 }
+    risk:
+      - { up_to: 1, pct: 1, label: "1% 미만" }
+      - { up_to: 5, pct: 1, label: "1%" }
+      - { up_to: 9, pct: 2, label: "2%" }
+      - { up_to: 10, pct: 5, label: "5%" }
+      - { up_to: 11, pct: 6, label: "6%" }
+      - { up_to: 12, pct: 8, label: "8%" }
+      - { up_to: 13, pct: 10, label: "10%" }
+      - { up_to: 14, pct: 12, label: "12%" }
+      - { up_to: 15, pct: 16, label: "16%" }
+      - { up_to: 16, pct: 20, label: "20%" }
+      - { up_to: 17, pct: 25, label: "25%" }
+      - { pct: 30, label: "30% 이상" }
+  F:
+    age:
+      - { up_to: 35, pts: -7 }
+      - { up_to: 40, pts: -3 }
+      - { up_to: 45, pts: 0 }
+      - { up_to: 50, pts: 3 }
+      - { up_to: 55, pts: 6 }
+      - { up_to: 60, pts: 8 }
+      - { up_to: 65, pts: 10 }
+      - { up_to: 70, pts: 12 }
+      - { up_to: 75, pts: 14 }
+      - { pts: 16 }
+    chol_by_age:
+      "20-39": [{ up_to: 160, pts: 0 }, { up_to: 200, pts: 4 }, { up_to: 240, pts: 8 }, { up_to: 280, pts: 11 }, { pts: 13 }]
+      "40-49": [{ up_to: 160, pts: 0 }, { up_to: 200, pts: 3 }, { up_to: 240, pts: 6 }, { up_to: 280, pts: 8 }, { pts: 10 }]
+      "50-59": [{ up_to: 160, pts: 0 }, { up_to: 200, pts: 2 }, { up_to: 240, pts: 4 }, { up_to: 280, pts: 5 }, { pts: 7 }]
+      "60-69": [{ up_to: 160, pts: 0 }, { up_to: 200, pts: 1 }, { up_to: 240, pts: 2 }, { up_to: 280, pts: 3 }, { pts: 4 }]
+      "70-79": [{ up_to: 160, pts: 0 }, { up_to: 200, pts: 1 }, { up_to: 240, pts: 1 }, { up_to: 280, pts: 2 }, { pts: 2 }]
+    smoker_by_age:
+      "20-39": 9
+      "40-49": 7
+      "50-59": 4
+      "60-69": 2
+      "70-79": 1
+    hdl:
+      - { up_to: 40, pts: 2 }
+      - { up_to: 50, pts: 1 }
+      - { up_to: 60, pts: 0 }
+      - { pts: -1 }
+    sbp_untreated:
+      - { up_to: 120, pts: 0 }
+      - { up_to: 130, pts: 1 }
+      - { up_to: 140, pts: 2 }
+      - { up_to: 160, pts: 3 }
+      - { pts: 4 }
+    sbp_treated:
+      - { up_to: 120, pts: 0 }
+      - { up_to: 130, pts: 3 }
+      - { up_to: 140, pts: 4 }
+      - { up_to: 160, pts: 5 }
+      - { pts: 6 }
+    risk:
+      - { up_to: 9, pct: 1, label: "1% 미만" }
+      - { up_to: 13, pct: 1, label: "1%" }
+      - { up_to: 15, pct: 2, label: "2%" }
+      - { up_to: 16, pct: 3, label: "3%" }
+      - { up_to: 17, pct: 4, label: "4%" }
+      - { up_to: 18, pct: 5, label: "5%" }
+      - { up_to: 19, pct: 6, label: "6%" }
+      - { up_to: 20, pct: 8, label: "8%" }
+      - { up_to: 21, pct: 11, label: "11%" }
+      - { up_to: 22, pct: 14, label: "14%" }
+      - { up_to: 23, pct: 17, label: "17%" }
+      - { up_to: 24, pct: 22, label: "22%" }
+      - { up_to: 25, pct: 27, label: "27%" }
+      - { pct: 30, label: "30% 이상" }
+
+# 위험 구간 표시용 (동일 pct 스케일)
+bands:
+  - { up_to: 10, label: 낮음 }
+  - { up_to: 20, label: 보통 }
+  - { up_to: 30, label: 높음 }
+  - { label: 매우 높음 }
+
+# what-if(조절 시뮬레이션) 목표값 — 각 항목의 0점 구간에 들도록
+targets:
+  sbp: 119
+  total_chol: 159
