@@ -17,8 +17,8 @@ from health14 import analysis, recommend, relations, vault
 def _member_payload(report: Dict[str, Any]) -> Dict[str, Any]:
     """build_member_report() 결과에서 대시보드에 필요한 부분만 추림."""
     keys = ["relation", "age", "sex", "birth_year", "stage", "series", "latest",
-            "trends", "risks", "recommendations", "lifestyle", "departments",
-            "quarters", "opinion"]
+            "trends", "insights", "highlights", "risks", "recommendations",
+            "lifestyle", "departments", "quarters", "opinion"]
     return {k: report[k] for k in keys}
 
 

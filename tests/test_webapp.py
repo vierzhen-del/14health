@@ -93,6 +93,8 @@ def test_member_and_checkup_flow(server, tmp_path):
     assert m["relation"] == "나"
     assert m["latest"]["수축기혈압"]["value"] == 120
     assert m["latest"]["체중"]["value"] == 72
+    # 내용 고급화 키가 payload에 노출된다
+    assert "insights" in m and "highlights" in m
 
 
 def test_data_payload_includes_vault_path(server, tmp_path):

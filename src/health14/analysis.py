@@ -18,12 +18,129 @@ CORE_METRICS = [
     "AST", "ALT", "감마GTP", "크레아티닌", "eGFR", "혈색소",
 ]
 
+# 시계열 전체의 예측 변화량이 평균 절대값의 이 비율 미만이면 "유지"로 본다.
+# (알고리즘 상수 — 의학 기준 아님. 의학 기준은 data/guidelines/*.yaml 에만 둔다)
+STABLE_RATIO = 0.02
+
 
 def _to_float(value: Any) -> Optional[float]:
     try:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def series_insights(series: Dict[str, List[Dict[str, Any]]],
+                    sex: str = "") -> Dict[str, Dict[str, Any]]:
+    """시계열 전체를 본 추이 인사이트 (2개 이상 시점이 있는 항목만).
+
+    trends(최근 2개 시점 비교)와 달리 전체 기울기·최고/최저·연속 스트릭·
+    판정 변화를 계산한다. higher_is_better 항목(HDL·eGFR·혈색소)은 방향을
+    뒤집어 해석한다.
+    """
+    out: Dict[str, Dict[str, Any]] = {}
+    for metric, points in series.items():
+        if len(points) < 2:
+            continue
+        pts = sorted(points, key=lambda p: (p.get("year") or 0))
+        xs = [float(p.get("year") or i) for i, p in enumerate(pts)]
+        ys = [p["value"] for p in pts]
+        n = len(xs)
+        mx, my = sum(xs) / n, sum(ys) / n
+        denom = sum((x - mx) ** 2 for x in xs)
+        slope = (sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / denom
+                 if denom else 0.0)
+        total_change = slope * (xs[-1] - xs[0])
+        mean_abs = sum(abs(y) for y in ys) / n or 1.0
+
+        mdef = recommend.metric_def(metric, sex) or {}
+        hib = bool(mdef.get("higher_is_better"))
+        if abs(total_change) < STABLE_RATIO * mean_abs:
+            direction = "유지"
+        else:
+            worse = total_change > 0
+            direction = "악화" if (worse != hib) else "개선"
+
+        best = (max if hib else min)(pts, key=lambda p: p["value"])
+        worst = (min if hib else max)(pts, key=lambda p: p["value"])
+
+        # 마지막 시점 기준 연속 개선/악화 스트릭 (스텝 수 = 시점 수 - 1)
+        steps: List[str] = []
+        for a, b in zip(pts, pts[1:]):
+            d = b["value"] - a["value"]
+            if abs(d) < 1e-9:
+                steps.append("유지")
+            else:
+                steps.append("악화" if ((d > 0) != hib) else "개선")
+        streak = {"kind": "", "count": 0}
+        if steps and steps[-1] != "유지":
+            kind = steps[-1]
+            count = 0
+            for s in reversed(steps):
+                if s != kind:
+                    break
+                count += 1
+            streak = {"kind": kind, "count": count}
+
+        c_first = recommend.classify(metric, pts[0]["value"], sex)
+        c_last = recommend.classify(metric, pts[-1]["value"], sex)
+        status_change = None
+        if c_first and c_last and c_first["status"] != c_last["status"]:
+            status_change = f"{c_first['status']}→{c_last['status']}"
+
+        out[metric] = {
+            "direction": direction,
+            "change_since_first": round(pts[-1]["value"] - pts[0]["value"], 2),
+            "first_year": pts[0].get("year"),
+            "last_year": pts[-1].get("year"),
+            "best": {"year": best.get("year"), "value": best["value"]},
+            "worst": {"year": worst.get("year"), "value": worst["value"]},
+            "streak": streak,
+            "status_change": status_change,
+        }
+    return out
+
+
+def build_highlights(insights: Dict[str, Dict[str, Any]],
+                     latest: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """자동 하이라이트 (Apple Health Trends 스타일).
+
+    severity: 2=경고(악화·판정 악화), 0=긍정(개선·최고 기록). 심각한 것 먼저.
+    """
+    items: List[Dict[str, Any]] = []
+    for metric, ins in insights.items():
+        sc = ins.get("status_change")
+        if sc:
+            first, _, last = sc.partition("→")
+            worsened = (recommend.STATUS_ORDER.get(last, 0)
+                        > recommend.STATUS_ORDER.get(first, 0))
+            items.append({
+                "metric": metric,
+                "kind": "entered_risk" if worsened else "returned_normal",
+                "severity": 2 if worsened else 0,
+                "text": (f"{metric} 판정이 {sc}로 "
+                         + ("바뀌었습니다" if worsened else "좋아졌습니다")),
+            })
+        st = ins["streak"]
+        at_best = (ins["best"].get("year") == ins.get("last_year"))
+        if st["kind"] == "악화" and st["count"] >= 2:
+            items.append({
+                "metric": metric, "kind": "streak_worse", "severity": 2,
+                "text": f"{metric} {st['count']}회 연속 악화 추세",
+            })
+        elif st["kind"] == "개선" and st["count"] >= 2:
+            items.append({
+                "metric": metric, "kind": "streak_better", "severity": 0,
+                "text": (f"{metric} {st['count']}회 연속 개선"
+                         + (" — 기록상 최고" if at_best else "")),
+            })
+        elif at_best and ins["direction"] == "개선":
+            items.append({
+                "metric": metric, "kind": "personal_best", "severity": 0,
+                "text": f"{metric} 최근 수치가 기록상 가장 좋습니다",
+            })
+    items.sort(key=lambda h: -h["severity"])
+    return items
 
 
 def build_member_report(vault_path: Path, relation: str,
@@ -119,6 +236,9 @@ def build_member_report(vault_path: Path, relation: str,
         if tag not in risk_tags:
             risk_tags.append(tag)
 
+    insights = series_insights(series, sex)
+    highlights = build_highlights(insights, latest)
+
     recs = recommend.recommended_checkups(age, sex, family_diseases)
     advice = recommend.lifestyle_advice(age, risk_tags)
     departments = recommend.department_advice(tag_status)
@@ -136,6 +256,8 @@ def build_member_report(vault_path: Path, relation: str,
         "series": series,
         "latest": latest,
         "trends": trends,
+        "insights": insights,
+        "highlights": highlights,
         "risks": risks,
         "risk_tags": risk_tags,
         "family_diseases": family_diseases,
@@ -181,6 +303,14 @@ def write_analysis_note(vault_path: Path, relation: str,
 
     lines: List[str] = [f"# {relation} 위험도 분석 ({today.isoformat()})", ""]
     lines += [f"- 나이: {report['age']}세 ({report['stage']})", ""]
+
+    if report.get("highlights"):
+        lines.append("## 하이라이트")
+        lines.append("")
+        for h in report["highlights"]:
+            mark = "⚠️" if h["severity"] >= 2 else "👍"
+            lines.append(f"- {mark} {h['text']}")
+        lines.append("")
 
     lines.append("## 주요 질병 위험도")
     lines.append("")
