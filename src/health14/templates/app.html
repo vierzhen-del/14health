@@ -363,6 +363,49 @@ textarea{resize:vertical;min-height:56px}
     </div>
 
     <div class="card">
+      <h3 style="font-size:14px;margin-bottom:6px">💊 현재 진료내역</h3>
+      <p class="hint" style="margin-top:0">지금 <b>치료 중</b>인 질환·복용 중인 약·다음 예약입니다.
+        과거 진료 기록과 달리 계속 바뀌는 상태라 따로 관리합니다.</p>
+      <label>구성원</label><select id="tx-relation"></select>
+      <div class="seg" id="tx-kinds">
+        <button class="on" data-k="condition">치료중 질환</button>
+        <button data-k="medication">복용중인 약</button>
+        <button data-k="next_visit">다음 예약</button>
+      </div>
+
+      <div id="tx-p-condition" class="tx-panel">
+        <label>질환명</label><input type="text" id="tx-c-name" placeholder="고혈압">
+        <div class="row2">
+          <div><label>시작 시기 (선택)</label><input type="text" id="tx-c-since" placeholder="2023-05"></div>
+          <div><label>상태</label><select id="tx-c-status">
+            <option>관리중</option><option>치료중</option><option>추적관찰</option></select></div>
+        </div>
+        <label>진료과 (선택 · 병원 실명 대신 진료과)</label>
+        <input type="text" id="tx-c-dept" placeholder="내과(순환기)">
+      </div>
+
+      <div id="tx-p-medication" class="tx-panel" hidden>
+        <label>약 이름</label><input type="text" id="tx-m-name" placeholder="암로디핀">
+        <div class="row2">
+          <div><label>용법·용량 (선택)</label><input type="text" id="tx-m-dose" placeholder="5mg 1일 1회"></div>
+          <div><label>어떤 질환 약인지 (선택)</label><input type="text" id="tx-m-for" placeholder="고혈압"></div>
+        </div>
+        <label>복용 시작 (선택)</label><input type="text" id="tx-m-since" placeholder="2023-05">
+      </div>
+
+      <div id="tx-p-next_visit" class="tx-panel" hidden>
+        <label>예약일</label><input type="date" id="tx-n-date">
+        <div class="row2">
+          <div><label>진료과 (선택)</label><input type="text" id="tx-n-dept" placeholder="내과(순환기)"></div>
+          <div><label>목적 (선택)</label><input type="text" id="tx-n-purpose" placeholder="정기 처방"></div>
+        </div>
+      </div>
+
+      <button class="btn" onclick="submitTreatment()">현재 진료내역 저장</button>
+      <div id="tx-current"></div>
+    </div>
+
+    <div class="card">
       <h3 style="font-size:14px;margin-bottom:6px">🧬 가족력 입력</h3>
       <label>관계 (부/모/조부 등)</label><input type="text" id="fh-relation" placeholder="부">
       <label>질환명</label><input type="text" id="fh-disease" placeholder="고혈압">
@@ -701,7 +744,7 @@ async function loadData(){
 
 function populateRelationSelects(){
   const rels = (DATA.members||[]).map(m=>m.relation);
-  for(const id of ["ck-relation","vs-relation","mdx-relation"]){
+  for(const id of ["ck-relation","vs-relation","mdx-relation","tx-relation"]){
     const el = document.getElementById(id);
     const current = el.value;
     el.innerHTML = rels.length
@@ -887,6 +930,78 @@ document.querySelectorAll("#ck-methods button").forEach(b=>b.onclick=()=>{
   const panel=document.getElementById("mp-"+b.dataset.m);
   if(panel) panel.classList.add("on");
 });
+
+/* ---------- 입력: 현재 진료내역 ---------- */
+document.querySelectorAll("#tx-kinds button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll("#tx-kinds button").forEach(x=>x.classList.toggle("on",x===b));
+  document.querySelectorAll(".tx-panel").forEach(p=>{
+    p.hidden = (p.id !== "tx-p-"+b.dataset.k);
+  });
+});
+document.getElementById("tx-relation").addEventListener("change", renderCurrentTreatment);
+function txKind(){
+  const on=document.querySelector("#tx-kinds button.on");
+  return on ? on.dataset.k : "condition";
+}
+function renderCurrentTreatment(){
+  const el=document.getElementById("tx-current"); if(!el) return;
+  const m=member(document.getElementById("tx-relation")?.value);
+  const t=(m||{}).treatment;
+  if(!t || !(t.conditions.length||t.medications.length||t.next_visits.length)){
+    el.innerHTML=`<p class="hint">등록된 현재 진료내역이 없습니다.</p>`; return;
+  }
+  const row=(kind,name,text)=>`<div class="risk-item"><span>${text}</span>
+    <button class="btn ghost sm" style="width:auto;margin:0"
+      onclick="endTreatment('${esc(kind)}','${esc(name)}')">종료</button></div>`;
+  el.innerHTML=[
+    ...t.conditions.filter(c=>c.status!=="완치").map(c=>row("condition",c.name,
+      `🩺 <b>${esc(c.name)}</b> ${esc(c.status||"")} ${c.dept?"· "+esc(c.dept):""}`)),
+    ...t.medications.map(x=>row("medication",x.name,
+      `💊 <b>${esc(x.name)}</b> ${esc(x.dose||"")} ${x.for?"· "+esc(x.for):""}`)),
+    ...t.next_visits.map(n=>row("next_visit",n.date,
+      `📅 <b>${esc(n.date)}</b> ${esc(n.dept||"")} ${n.purpose?"· "+esc(n.purpose):""}`)),
+  ].join("");
+}
+async function submitTreatment(){
+  const relation=document.getElementById("tx-relation").value;
+  if(!relation) return toast("구성원을 먼저 등록하세요.");
+  const kind=txKind();
+  let item={};
+  if(kind==="condition"){
+    item={name:document.getElementById("tx-c-name").value.trim(),
+          since:document.getElementById("tx-c-since").value.trim(),
+          status:document.getElementById("tx-c-status").value,
+          dept:document.getElementById("tx-c-dept").value.trim()};
+    if(!item.name) return toast("질환명을 입력하세요.");
+  }else if(kind==="medication"){
+    item={name:document.getElementById("tx-m-name").value.trim(),
+          dose:document.getElementById("tx-m-dose").value.trim(),
+          since:document.getElementById("tx-m-since").value.trim(),
+          for:document.getElementById("tx-m-for").value.trim()};
+    if(!item.name) return toast("약 이름을 입력하세요.");
+  }else{
+    item={date:document.getElementById("tx-n-date").value,
+          dept:document.getElementById("tx-n-dept").value.trim(),
+          purpose:document.getElementById("tx-n-purpose").value.trim()};
+    if(!item.date) return toast("예약일을 선택하세요.");
+  }
+  try{
+    await postJSON("/api/treatment",{relation, kind, item});
+    toast("현재 진료내역 저장 완료");
+    ["tx-c-name","tx-c-since","tx-c-dept","tx-m-name","tx-m-dose","tx-m-since",
+     "tx-m-for","tx-n-date","tx-n-dept","tx-n-purpose"]
+      .forEach(id=>{const e=document.getElementById(id); if(e) e.value="";});
+    await loadData(); renderCurrentTreatment();
+  }catch(e){ toast(e.message); }
+}
+async function endTreatment(kind,name){
+  const relation=document.getElementById("tx-relation").value;
+  try{
+    await postJSON("/api/treatment",{relation, kind, name, end:true});
+    toast("종료 처리 완료");
+    await loadData(); renderCurrentTreatment();
+  }catch(e){ toast(e.message); }
+}
 
 function fillCheckupForm(parsed){
   if(parsed.relation && member(parsed.relation))
@@ -1580,6 +1695,7 @@ function render(){
   homeCards(); memberDetail(); lifecycle(); settingsView();
   renderTree(); renderRecTarget(); renderCalendar();
   renderClaimBanner(); renderInsuranceForm(); renderInsuranceList();
+  renderCurrentTreatment();
 }
 boot();
 </script>

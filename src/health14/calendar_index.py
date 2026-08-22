@@ -9,9 +9,10 @@ import datetime as dt
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from health14 import relations, vault
+from health14 import relations, treatment, vault
 
-KIND_LABEL = {"checkup": "검진", "visit": "진료", "analysis": "분석"}
+KIND_LABEL = {"checkup": "검진", "visit": "진료", "analysis": "분석",
+              "appointment": "예약"}
 
 
 def _iso_week(date: dt.date) -> str:
@@ -67,6 +68,24 @@ def build_index(vault_path: Path, year: Optional[int] = None) -> List[Dict[str, 
                     "title": _title_for(kind, meta, f),
                     "note": f.relative_to(vault_path).as_posix(),
                 })
+        # 다음 예약은 노트가 아니라 프로필에 있으므로 따로 얹는다 (미래 날짜)
+        for plan in treatment.load_treatment(vault_path, relation)["next_visits"]:
+            date = _parse_date(plan.get("date"))
+            if date is None or (year and date.year != year):
+                continue
+            title = " — ".join(x for x in (plan.get("dept"), plan.get("purpose")) if x)
+            entries.append({
+                "date": date.isoformat(),
+                "week": _iso_week(date),
+                "month": date.month,
+                "year": date.year,
+                "relation": relation,
+                "display": display.get(relation, relation),
+                "kind": "appointment",
+                "label": KIND_LABEL["appointment"],
+                "title": title or "진료 예약",
+                "note": "",
+            })
     entries.sort(key=lambda e: (e["date"], e["display"]))
     return entries
 

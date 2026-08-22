@@ -10,7 +10,7 @@ import datetime as dt
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from health14 import recommend, riskscore, vault
+from health14 import recommend, riskscore, treatment, vault
 
 CORE_METRICS = [
     "수축기혈압", "이완기혈압", "공복혈당", "식후혈당", "당화혈색소",
@@ -157,6 +157,7 @@ def build_member_report(vault_path: Path, relation: str,
     visits = vault.load_visits(vault_path, relation)
     family_diseases = [h["disease"] for h in vault.load_family_history(vault_path)]
     profile = vault.load_profile(vault_path, relation)
+    current_treatment = treatment.load_treatment(vault_path, relation)
 
     # 연도별 시계열
     series: Dict[str, List[Dict[str, Any]]] = {}
@@ -282,6 +283,7 @@ def build_member_report(vault_path: Path, relation: str,
         "tag_status": tag_display,
         "profile": {"smoking": profile.get("smoking"),
                    "bp_treated": profile.get("bp_treated")},
+        "treatment": current_treatment,
         "risks": risks,
         "risk_tags": risk_tags,
         "family_diseases": family_diseases,

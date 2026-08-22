@@ -198,3 +198,23 @@ def test_당뇨_추정은_dict_질환에서도_동작():
                "HDL": {"value": 50}},
         profile={"conditions": [{"name": "당뇨", "status": "치료중"}]})
     assert inputs["diabetes"] is True
+
+
+# ---------------------------------------------------------------- 캘린더 연동
+
+def test_예약이_캘린더에_예약_종류로_뜬다(v):
+    from health14 import calendar_index
+    treatment.set_treatment(v, "나", next_visits=[
+        {"date": "2026-09-15", "dept": "내과", "purpose": "정기 처방"}])
+    rows = calendar_index.build_index(v, 2026)
+    appt = [r for r in rows if r["kind"] == "appointment"]
+    assert len(appt) == 1
+    assert appt[0]["label"] == "예약" and appt[0]["date"] == "2026-09-15"
+    assert "내과" in appt[0]["title"]
+
+
+def test_리포트에_treatment가_실린다(v):
+    from health14 import analysis
+    treatment.add_item(v, "나", "condition", {"name": "고혈압"})
+    report = analysis.build_member_report(v, "나")
+    assert report["treatment"]["conditions"][0]["name"] == "고혈압"

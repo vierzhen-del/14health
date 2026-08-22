@@ -24,7 +24,7 @@ from urllib.parse import parse_qs, quote, urlparse
 
 from health14 import (analysis, anonymize, calendar_index, config, dashboard,
                       export, family_io, insurance, intake, md_io, ocr, official,
-                      parse, relations, share, vault)
+                      parse, relations, share, treatment, vault)
 
 
 # --lan 으로 실행할 때만 설정된다. None이면 토큰 검사를 하지 않는다(로컬 전용 모드).
@@ -59,6 +59,8 @@ def _data_payload(v: Path) -> Dict[str, Any]:
     payload["familyHistory"] = vault.load_family_history(v)
     payload["log"] = list(reversed(vault.load_log(v)[-20:]))
     payload["claims"] = insurance.claim_summary(v)
+    payload["appointments"] = treatment.upcoming_summary(v)
+    payload["upcoming"] = treatment.upcoming_visits(v)
     return payload
 
 
@@ -201,6 +203,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._handle_member(data)
             elif path == "/api/profile":
                 self._handle_profile(data)
+            elif path == "/api/treatment":
+                self._handle_treatment(data)
             elif path == "/api/history":
                 self._handle_history(data)
             elif path == "/api/note":
@@ -285,6 +289,26 @@ class Handler(BaseHTTPRequestHandler):
             fields["bp_treated"] = bool(data["bp_treated"])
         vault.update_profile(v, relation, fields)
         vault.log_action(v, relation, "프로필수정", "건강 프로필 갱신")
+        self._send_json({"ok": True})
+
+    def _handle_treatment(self, data: Dict[str, Any]) -> None:
+        """현재 진료내역 등록·종료 — 로직은 treatment 모듈이 갖는다."""
+        v = self._require_vault()
+        if not v:
+            return
+        relation = (data.get("relation") or "").strip()
+        if not relation:
+            return self._error("관계호칭을 입력하세요.")
+        kind = (data.get("kind") or "").strip()
+        if kind not in ("condition", "medication", "next_visit"):
+            return self._error("kind는 condition/medication/next_visit 이어야 합니다.")
+        if data.get("end"):
+            treatment.end_item(v, relation, kind, (data.get("name") or "").strip())
+            label = "치료 항목 종료"
+        else:
+            treatment.add_item(v, relation, kind, data.get("item") or {})
+            label = "현재 진료내역 등록"
+        vault.log_action(v, relation, "치료입력", label)
         self._send_json({"ok": True})
 
     def _handle_history(self, data: Dict[str, Any]) -> None:

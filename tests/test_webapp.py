@@ -423,3 +423,35 @@ def test_official_parse_missing_file(server, tmp_path):
     err = _post_expect_error(server, "/api/official/parse",
                              {"path": str(tmp_path / "없는파일.pdf")}, 400)
     assert "파일이 없습니다" in err["error"]
+
+
+def test_treatment_endpoint_roundtrip(server, tmp_path):
+    new_path = tmp_path / "v4"
+    _post(server, "/api/vault/create", {"path": str(new_path)})
+    _post(server, "/api/member", {"relation": "나", "birth": 1970, "sex": "M"})
+    res = _post(server, "/api/treatment", {
+        "relation": "나", "kind": "condition",
+        "item": {"name": "고혈압", "status": "관리중", "dept": "내과"}})
+    assert res["ok"] is True
+    _post(server, "/api/treatment", {
+        "relation": "나", "kind": "next_visit", "item": {"date": "2099-09-15"}})
+
+    data = _get(server, "/api/data")
+    m = data["members"][0]
+    assert m["treatment"]["conditions"][0]["name"] == "고혈압"
+    assert data["appointments"]["count"] == 1
+    assert data["upcoming"][0]["date"] == "2099-09-15"
+
+    # 종료하면 완치로 바뀐다
+    _post(server, "/api/treatment", {
+        "relation": "나", "kind": "condition", "name": "고혈압", "end": True})
+    m = _get(server, "/api/data")["members"][0]
+    assert m["treatment"]["conditions"][0]["status"] == "완치"
+
+
+def test_treatment_endpoint_rejects_bad_kind(server, tmp_path):
+    _post(server, "/api/vault/create", {"path": str(tmp_path / "v5")})
+    _post(server, "/api/member", {"relation": "나", "birth": 1970, "sex": "M"})
+    err = _post_expect_error(
+        server, "/api/treatment", {"relation": "나", "kind": "nope", "item": {}}, 400)
+    assert "kind" in err["error"]

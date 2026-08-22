@@ -13,7 +13,7 @@ from typing import Any, Dict, List
 
 from health14 import (analysis, anonymize, config, dashboard, export, family_io,
                       hira, insurance, intake, md_io, mcp_server, notion_log,
-                      ocr, official, relations, share, vault, webapp)
+                      ocr, official, relations, share, treatment, vault, webapp)
 
 
 def _vault() -> Path:
@@ -205,6 +205,63 @@ def cmd_insurance(args) -> int:
         print(f"[{relation}]")
         for i in items:
             print(f"  - {i.get('보험사')} {i.get('상품명')} ({i.get('종류', '-')})")
+    return 0
+
+
+def cmd_treatment(args) -> int:
+    """현재 진료내역 — 치료중 질환·복약중인 약·다음 예약."""
+    v = _vault()
+    if args.action == "add":
+        if args.condition:
+            item = {"name": args.condition, "since": args.since or "",
+                    "status": args.status or "관리중", "dept": args.dept or ""}
+            treatment.add_item(v, args.relation, "condition", item)
+            label = f"{args.condition} 치료 등록"
+        elif args.med:
+            item = {"name": args.med, "dose": args.dose or "",
+                    "since": args.since or "", "for": getattr(args, "for") or ""}
+            treatment.add_item(v, args.relation, "medication", item)
+            label = f"{args.med} 복약 등록"
+        elif args.appointment:
+            item = {"date": args.appointment, "dept": args.dept or "",
+                    "purpose": args.purpose or ""}
+            treatment.add_item(v, args.relation, "next_visit", item)
+            label = f"{args.appointment} 예약 등록"
+        else:
+            raise SystemExit("--condition, --med, --appointment 중 하나는 필요합니다.")
+        vault.log_action(v, args.relation, "치료입력", label)
+        print(f"등록 완료: {label}")
+        return 0
+
+    if args.action == "end":
+        target = args.condition or args.med or args.appointment
+        kind = ("condition" if args.condition else
+                "medication" if args.med else "next_visit")
+        if not target:
+            raise SystemExit("--condition, --med, --appointment 중 하나는 필요합니다.")
+        treatment.end_item(v, args.relation, kind, target)
+        vault.log_action(v, args.relation, "치료입력", "치료 항목 종료")
+        print(f"종료 처리: {target}")
+        return 0
+
+    # list
+    targets = [args.relation] if args.relation else [
+        m["relation"] for m in vault.load_members(v)]
+    for relation in targets:
+        t = treatment.load_treatment(v, relation)
+        if not any(t.values()):
+            continue
+        print(f"[{relation}]")
+        for c in t["conditions"]:
+            extra = " · ".join(x for x in (c.get("status"), c.get("dept"),
+                                           c.get("since")) if x)
+            print(f"  · 치료 {c['name']}" + (f" ({extra})" if extra else ""))
+        for m in t["medications"]:
+            extra = " · ".join(x for x in (m.get("dose"), m.get("for")) if x)
+            print(f"  · 복약 {m['name']}" + (f" ({extra})" if extra else ""))
+        for n in t["next_visits"]:
+            extra = " · ".join(x for x in (n.get("dept"), n.get("purpose")) if x)
+            print(f"  · 예약 {n['date']}" + (f" ({extra})" if extra else ""))
     return 0
 
 
@@ -562,6 +619,26 @@ def build_parser() -> argparse.ArgumentParser:
     i2 = isub.add_parser("list", help="보험 목록")
     i2.add_argument("relation", nargs="?", help="생략 시 가족 전체")
     sp.set_defaults(func=cmd_insurance)
+
+    sp = sub.add_parser("treatment", help="현재 진료내역 (치료중 질환·복약·다음 예약)")
+    tsub = sp.add_subparsers(dest="action", required=True)
+    for action, helptext in (("add", "치료·복약·예약 등록"), ("end", "치료·복약·예약 종료")):
+        t = tsub.add_parser(action, help=helptext)
+        t.add_argument("relation", help="관계호칭")
+        t.add_argument("--condition", help="치료중 질환명")
+        t.add_argument("--med", help="복용중인 약 이름")
+        t.add_argument("--appointment", metavar="YYYY-MM-DD", help="다음 예약일")
+        if action == "add":
+            t.add_argument("--since", help="시작 시기 (예: 2023-05)")
+            t.add_argument("--status", choices=treatment.CONDITION_STATES,
+                           help="질환 상태 (기본: 관리중)")
+            t.add_argument("--dept", help="진료과 (병원 실명이 아닌 진료과 종류)")
+            t.add_argument("--dose", help="용법·용량 (예: 5mg 1일 1회)")
+            t.add_argument("--for", dest="for", help="이 약이 치료하는 질환")
+            t.add_argument("--purpose", help="예약 목적")
+    t3 = tsub.add_parser("list", help="현재 진료내역 조회")
+    t3.add_argument("relation", nargs="?", help="생략 시 가족 전체")
+    sp.set_defaults(func=cmd_treatment)
 
     sp = sub.add_parser("claims", help="실비 미청구 건 조회")
     sp.add_argument("--json", action="store_true")
