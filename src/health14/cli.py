@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
-from health14 import (analysis, anonymize, config, dashboard, export, family_io,
+from health14 import (analysis, anonymize, config, consult, dashboard, export, family_io,
                       hira, insurance, intake, md_io, mcp_server, notion_log,
                       ocr, official, relations, share, treatment, vault, webapp)
 
@@ -205,6 +205,18 @@ def cmd_insurance(args) -> int:
         print(f"[{relation}]")
         for i in items:
             print(f"  - {i.get('보험사')} {i.get('상품명')} ({i.get('종류', '-')})")
+    return 0
+
+
+def cmd_consult(args) -> int:
+    """AI 상담 브리핑 생성 — 만들어 보여줄 뿐 어디로도 전송하지 않는다."""
+    v = _vault()
+    briefing = consult.build_briefing(v, args.relation)
+    if args.json:
+        print(json.dumps(briefing, ensure_ascii=False))
+        return 0
+    print(consult.render_text(briefing))
+    print(f"\n[안내] {consult.COPY_WARNING}")
     return 0
 
 
@@ -619,6 +631,11 @@ def build_parser() -> argparse.ArgumentParser:
     i2 = isub.add_parser("list", help="보험 목록")
     i2.add_argument("relation", nargs="?", help="생략 시 가족 전체")
     sp.set_defaults(func=cmd_insurance)
+
+    sp = sub.add_parser("consult", help="AI 상담 브리핑 생성 (전송 없음 — 화면에만 출력)")
+    sp.add_argument("relation", nargs="?", help="생략 시 가족 전체")
+    sp.add_argument("--json", action="store_true", help="JSON 출력")
+    sp.set_defaults(func=cmd_consult)
 
     sp = sub.add_parser("treatment", help="현재 진료내역 (치료중 질환·복약·다음 예약)")
     tsub = sp.add_subparsers(dest="action", required=True)
