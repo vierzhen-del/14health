@@ -150,12 +150,21 @@ def department_advice(tag_status: Dict[str, str]) -> List[Dict[str, str]]:
     return result
 
 
+def disease_tags() -> Dict[str, str]:
+    """질환명 → 수치 태그 매핑 (가족력·현재 치료·복약 공용)."""
+    return reference_ranges().get("disease_tags", {})
+
+
+def disease_tag(disease: str) -> Optional[str]:
+    """질환명 하나를 수치 태그로. 모르는 질환이면 None."""
+    return disease_tags().get(str(disease).strip())
+
+
 def family_history_tags(family_diseases: List[str]) -> List[str]:
     """가족력 질환 → 관련 수치 태그."""
-    mapping = reference_ranges().get("family_history_tags", {})
     tags = []
     for d in family_diseases:
-        tag = mapping.get(d)
+        tag = disease_tag(d)
         if tag and tag not in tags:
             tags.append(tag)
     return tags

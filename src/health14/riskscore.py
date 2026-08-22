@@ -11,12 +11,23 @@ from typing import Any, Dict, List, Optional
 
 import yaml
 
+from health14 import recommend, treatment
+
 
 @lru_cache(maxsize=None)
 def _load() -> Dict[str, Any]:
     ref = resources.files("health14").joinpath("data/guidelines/cvd_risk.yaml")
     with ref.open(encoding="utf-8") as f:
         return yaml.safe_load(f)
+
+
+def _has_bp_medication(profile: Dict[str, Any]) -> bool:
+    """복약 목록에 혈압 태그로 매핑되는 약이 있는가 (`for: 고혈압` 등)."""
+    for med in treatment.normalize_medications(profile.get("medications")):
+        target = med.get("for")
+        if target and recommend.disease_tag(target) == "혈압":
+            return True
+    return False
 
 
 def _pick(bands: List[Dict[str, Any]], value: float) -> Dict[str, Any]:
@@ -94,13 +105,18 @@ def cvd_inputs(age: int, sex: str, latest: Dict[str, Dict[str, Any]],
         smoking = False
     bp_treated = profile.get("bp_treated")
     if bp_treated is None:
-        assumptions.append("혈압약 복용 여부 미등록 — 미복용으로 가정")
-        bp_treated = False
+        # 명시 설정이 없으면 복약 기록에서 유추한다 (근거는 assumptions 에 남긴다)
+        if _has_bp_medication(profile):
+            assumptions.append("복약 기록에 혈압 관련 약이 있어 복용 중으로 계산")
+            bp_treated = True
+        else:
+            assumptions.append("혈압약 복용 여부 미등록 — 미복용으로 가정")
+            bp_treated = False
 
     fg_status = (latest.get("공복혈당") or {}).get("status")
     a1c_status = (latest.get("당화혈색소") or {}).get("status")
     diabetes = (fg_status == "위험" or a1c_status == "위험"
-               or "당뇨" in (profile.get("conditions") or []))
+               or "당뇨" in treatment.condition_names(profile))
 
     return {
         "age": age, "sex": sex, "sbp": sbp, "total_chol": total_chol,
