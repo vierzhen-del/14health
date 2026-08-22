@@ -445,6 +445,17 @@ textarea{resize:vertical;min-height:56px}
       </label>
     </div>
     <div id="rec-result"></div>
+
+    <h2 class="section">AI 상담 브리핑</h2>
+    <div class="card">
+      <p class="hint" style="margin-top:0">가족력 · 현재 치료 · 검진수치를 한 장으로 묶어
+        <b>이 기기 안에서</b> 만듭니다. 만들어 보여줄 뿐 <b>어디로도 전송하지 않습니다</b> —
+        Claude 등에 붙여넣을지는 직접 정하세요.</p>
+      <label>대상</label><select id="cs-target"></select>
+      <button class="btn" onclick="buildBriefing()">🩺 상담 브리핑 만들기</button>
+      <div id="cs-result"></div>
+    </div>
+
     <h2 class="section">생애주기 건강검진 일정</h2>
     <div id="lifecycle"></div>
   </section>
@@ -1648,11 +1659,37 @@ function openNote(note){
 
 /* ---------- 예방 검진 추천 ---------- */
 function renderRecTarget(){
-  const sel=document.getElementById("rec-target");
-  const cur=sel.value;
-  sel.innerHTML='<option value="">가족 전체</option>'+(DATA.members||[]).map(m=>
-    `<option value="${esc(m.relation)}">${esc(m.display||m.relation)}</option>`).join("");
-  if(cur) sel.value=cur;
+  for(const id of ["rec-target","cs-target"]){
+    const sel=document.getElementById(id); if(!sel) continue;
+    const cur=sel.value;
+    sel.innerHTML='<option value="">가족 전체</option>'+(DATA.members||[]).map(m=>
+      `<option value="${esc(m.relation)}">${esc(m.display||m.relation)}</option>`).join("");
+    if(cur) sel.value=cur;
+  }
+}
+async function buildBriefing(){
+  const relation=document.getElementById("cs-target").value;
+  const box=document.getElementById("cs-result");
+  box.innerHTML='<p class="hint">브리핑을 만드는 중…</p>';
+  try{
+    const r=await postJSON("/api/consult",{relation: relation||undefined});
+    box.innerHTML=`
+      <div class="hint" style="color:var(--danger);font-weight:700;margin-top:10px">
+        ⚠️ ${esc(r.warning)}</div>
+      <textarea id="cs-text" style="min-height:260px;font-size:12px" readonly></textarea>
+      <button class="btn ghost" onclick="copyBriefing()">📋 복사하기</button>`;
+    document.getElementById("cs-text").value=r.text;
+  }catch(e){ box.innerHTML=`<p class="hint">${esc(e.message)}</p>`; }
+}
+async function copyBriefing(){
+  const ta=document.getElementById("cs-text"); if(!ta) return;
+  try{
+    await navigator.clipboard.writeText(ta.value);
+    toast("복사했습니다 — 붙여넣는 곳을 확인하세요");
+  }catch(e){
+    ta.removeAttribute("readonly"); ta.select(); document.execCommand("copy");
+    ta.setAttribute("readonly",""); toast("복사했습니다");
+  }
 }
 async function runRecommend(){
   const relation=document.getElementById("rec-target").value;

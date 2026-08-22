@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 from urllib.parse import parse_qs, quote, urlparse
 
-from health14 import (analysis, anonymize, calendar_index, config, dashboard,
+from health14 import (analysis, anonymize, calendar_index, config, consult, dashboard,
                       export, family_io, insurance, intake, md_io, ocr, official,
                       parse, relations, share, treatment, vault)
 
@@ -205,6 +205,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._handle_profile(data)
             elif path == "/api/treatment":
                 self._handle_treatment(data)
+            elif path == "/api/consult":
+                self._handle_consult(data)
             elif path == "/api/history":
                 self._handle_history(data)
             elif path == "/api/note":
@@ -310,6 +312,18 @@ class Handler(BaseHTTPRequestHandler):
             label = "현재 진료내역 등록"
         vault.log_action(v, relation, "치료입력", label)
         self._send_json({"ok": True})
+
+    def _handle_consult(self, data: Dict[str, Any]) -> None:
+        """상담 브리핑 생성 — 로컬에서 만들어 돌려줄 뿐 외부 전송은 없다."""
+        v = self._require_vault()
+        if not v:
+            return
+        briefing = consult.build_briefing(v, (data.get("relation") or "").strip() or None)
+        self._send_json({
+            "briefing": briefing,
+            "text": consult.render_text(briefing),
+            "warning": consult.COPY_WARNING,
+        })
 
     def _handle_history(self, data: Dict[str, Any]) -> None:
         v = self._require_vault()

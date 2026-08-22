@@ -24,7 +24,8 @@ def test_tools_list_exposes_schemas():
     tools = _call("tools/list")["result"]["tools"]
     names = {t["name"] for t in tools}
     assert {"list_members", "recommend", "add_visit", "pending_claims",
-            "find_hospital", "family_tree"} <= names
+            "find_hospital", "family_tree", "treatment",
+            "consult_briefing"} <= names
     for t in tools:
         assert "description" in t and "inputSchema" in t
         # 내부 구현 참조가 새어나가면 안 된다
@@ -135,3 +136,32 @@ def test_parse_items_normalizes_rows():
     assert rows[0]["yadmNm"] == "서울소아과"
     normalized = hira._normalize(rows[0])
     assert normalized["이름"] == "서울소아과" and normalized["전화"] == "02-123-4567"
+
+
+def test_consult_briefing_tool(vault_path):
+    from health14 import treatment
+    vault.add_member(vault_path, "나", 1970, "M")
+    vault.add_checkup(vault_path, "나", 2025, {"수축기혈압": 142})
+    treatment.add_item(vault_path, "나", "condition", {"name": "고혈압"})
+    r = _call("tools/call", {"name": "consult_briefing",
+                             "arguments": {"relation": "나"}})
+    b = json.loads(r["result"]["content"][0]["text"])
+    assert b["구성원"][0]["대상"] == "나"
+    assert b["구성원"][0]["현재_치료중"][0]["질환"] == "고혈압"
+    assert "의학적 진단이 아닙니다" in b["면책"]
+
+
+def test_treatment_tool(vault_path):
+    from health14 import treatment
+    vault.add_member(vault_path, "나", 1970, "M")
+    treatment.add_item(vault_path, "나", "medication", {"name": "암로디핀"})
+    r = _call("tools/call", {"name": "treatment", "arguments": {}})
+    data = json.loads(r["result"]["content"][0]["text"])
+    assert data["나"]["medications"][0]["name"] == "암로디핀"
+
+
+def test_consult_briefing_error_is_returned_not_raised(vault_path):
+    """등록 안 된 구성원 → SystemExit 이 서버를 죽이지 않고 isError 로 온다."""
+    r = _call("tools/call", {"name": "consult_briefing",
+                             "arguments": {"relation": "없는사람"}})
+    assert r["result"]["isError"] is True

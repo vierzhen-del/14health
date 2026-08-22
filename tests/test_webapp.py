@@ -455,3 +455,16 @@ def test_treatment_endpoint_rejects_bad_kind(server, tmp_path):
     err = _post_expect_error(
         server, "/api/treatment", {"relation": "나", "kind": "nope", "item": {}}, 400)
     assert "kind" in err["error"]
+
+
+def test_consult_endpoint(server, tmp_path):
+    _post(server, "/api/vault/create", {"path": str(tmp_path / "v6")})
+    _post(server, "/api/member", {"relation": "나", "birth": 1970, "sex": "M"})
+    _post(server, "/api/note", {"relation": "나", "type": "checkup", "year": 2025,
+                                "metrics": {"혈압": "142/90"}})
+    _post(server, "/api/treatment", {
+        "relation": "나", "kind": "condition", "item": {"name": "고혈압"}})
+    r = _post(server, "/api/consult", {"relation": "나"})
+    assert r["briefing"]["구성원"][0]["대상"] == "나"
+    assert "의학적 진단이 아닙니다" in r["text"]
+    assert "건강 수치" in r["warning"]     # 복사 전 경고를 함께 준다

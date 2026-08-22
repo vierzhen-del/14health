@@ -13,8 +13,8 @@ import sys
 from pathlib import Path
 from typing import Any, Callable, Dict, List
 
-from health14 import (analysis, calendar_index, config, hira, insurance,
-                      intake, recommend, relations, vault)
+from health14 import (analysis, calendar_index, config, consult, hira,
+                      insurance, intake, recommend, relations, treatment, vault)
 
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_INFO = {"name": "14health", "version": "0.1.0"}
@@ -118,6 +118,18 @@ def _family_tree(_: Dict[str, Any]) -> Any:
     return relations.build_family_tree(_vault())
 
 
+def _treatment(args: Dict[str, Any]) -> Any:
+    v = _vault()
+    relation = args.get("relation")
+    targets = ([relation] if relation
+               else [m["relation"] for m in vault.load_members(v)])
+    return {r: treatment.load_treatment(v, r) for r in targets}
+
+
+def _consult_briefing(args: Dict[str, Any]) -> Any:
+    return consult.build_briefing(_vault(), args.get("relation") or None)
+
+
 TOOLS: List[Dict[str, Any]] = [
     {
         "name": "list_members",
@@ -216,6 +228,32 @@ TOOLS: List[Dict[str, Any]] = [
         "description": "세대별 가족 관계도와 구성원별 주요 병명.",
         "inputSchema": {"type": "object", "properties": {}},
         "_fn": _family_tree,
+    },
+    {
+        "name": "treatment",
+        "description": "현재 진료내역 — 치료중 질환·복용중인 약·다음 예약.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "relation": {"type": "string",
+                             "description": "관계호칭 (생략 시 가족 전체)"},
+            },
+        },
+        "_fn": _treatment,
+    },
+    {
+        "name": "consult_briefing",
+        "description": ("건강 상담용 브리핑 — 가족력·현재 치료·검진수치를 교차한 "
+                        "종합 소견과 추천 질문까지 한 번에. 로컬 vault만 읽으며 "
+                        "결과는 규칙 엔진 출력이므로 수치·판정을 임의로 바꾸지 말 것."),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "relation": {"type": "string",
+                             "description": "관계호칭 (생략 시 가족 전체)"},
+            },
+        },
+        "_fn": _consult_briefing,
     },
 ]
 
