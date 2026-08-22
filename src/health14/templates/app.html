@@ -72,6 +72,8 @@ ul.plain li:last-child{border-bottom:none}
 .sum-row{display:flex;gap:8px;align-items:baseline;padding:6px 0;font-size:13.5px;border-bottom:1px dashed var(--line)}
 .sum-row:last-child{border-bottom:none}
 .sum-ic{flex:none}
+.tx-now{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.tx-chip{font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;background:#eef2f9;color:#33405a}
 .fam-headline{font-size:13.5px;font-weight:800;margin-bottom:8px;color:#2c3d5c}
 .fam-table{border-collapse:collapse;width:100%;font-size:12px}
 .fam-table th{color:var(--sub);font-weight:700;padding:4px 6px;text-align:center;white-space:nowrap}
@@ -657,6 +659,23 @@ async function saveProfile(relation){
     await loadData();
   }catch(e){ toast(e.message); }
 }
+function findingsCard(m){
+  const fs=m.findings||[]; const t=m.treatment||{};
+  const hasT=(t.conditions||[]).some(c=>c.status!=="완치")||(t.medications||[]).length||(t.next_visits||[]).length;
+  if(!fs.length && !hasT) return "";
+  const ICON={2:"⚠️",1:"🔎",0:"👍"};
+  const COLOR={2:"var(--danger)",1:"var(--warn)",0:"var(--ok)"};
+  const cur=hasT?`<div class="tx-now">${[
+    ...(t.conditions||[]).filter(c=>c.status!=="완치").map(c=>`🩺 ${esc(c.name)}${c.status?" "+esc(c.status):""}`),
+    ...(t.medications||[]).map(x=>`💊 ${esc(x.name)}${x.dose?" "+esc(x.dose):""}`),
+    ...(t.next_visits||[]).map(n=>`📅 ${esc(n.date)}${n.dept?" "+esc(n.dept):""}`),
+  ].map(x=>`<span class="tx-chip">${x}</span>`).join("")}</div>`:"";
+  const rows=fs.map(f=>`<div class="risk-item">
+    <span class="risk-dot" style="background:${COLOR[f.severity]}"></span>
+    <span>${ICON[f.severity]} ${esc(f.text)}${f.action?`<br><span class="mc-stage">→ ${esc(f.action)}</span>`:""}</span></div>`).join("");
+  return `<div class="card"><h3 style="font-size:14px;margin-bottom:6px">종합 소견 — 가족력 · 현재 치료 · 검진수치</h3>
+    ${cur}${rows||'<div class="empty">교차 소견이 없습니다.</div>'}</div>`;
+}
 function summarySlots(m){
   const s=m.summary; if(!s) return "";
   const rows=[];
@@ -887,6 +906,7 @@ function memberDetail(){
       <button class="btn ghost" onclick="runAnalyze('${esc(m.relation)}')">🔍 위험도 분석 다시 실행</button></div>
     <div class="card"><h3 style="font-size:14px;margin-bottom:6px">주요 질병 위험도</h3>
       ${risks||'<div class="empty">위험 요인이 없습니다 👍</div>'}</div>
+    ${findingsCard(m)}
     ${charts}
     <div class="card"><h3 style="font-size:14px;margin-bottom:6px">추천 검진 항목 ${compBadge}</h3>
       <ul class="plain">${recs||'<li class="empty">해당 없음</li>'}</ul>

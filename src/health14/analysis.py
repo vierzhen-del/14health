@@ -155,7 +155,12 @@ def build_member_report(vault_path: Path, relation: str,
 
     checkups = vault.load_checkups(vault_path, relation)
     visits = vault.load_visits(vault_path, relation)
-    family_diseases = [h["disease"] for h in vault.load_family_history(vault_path)]
+    history = vault.load_family_history(vault_path)
+    family_diseases = [h["disease"] for h in history]
+    # 누가 어떤 병을 앓았는지 — 표시·상담용(위험 계산은 기존대로 질환명만 본다)
+    family_history = [{"relation": h.get("relation", ""), "disease": h["disease"],
+                       "tag": recommend.disease_tag(h["disease"]) or ""}
+                      for h in history]
     profile = vault.load_profile(vault_path, relation)
     current_treatment = treatment.load_treatment(vault_path, relation)
 
@@ -259,7 +264,10 @@ def build_member_report(vault_path: Path, relation: str,
     if cvd is not None and not cvd["diabetes_equivalent"]:
         cvd["whatif"] = riskscore.cvd_whatif(cvd_inputs)
 
-    summary = build_summary(age, risks, departments, trends, highlights)
+    findings = integrated_findings(tag_display, current_treatment, fh_tags,
+                                   latest, today)
+
+    summary = build_summary(age, risks, departments, trends, highlights, findings)
     if summary["top_risk"] is None and cvd and cvd["band"] in ("높음", "매우 높음"):
         cvd_action = ("순환기내과 상담 권장" if cvd["diabetes_equivalent"]
                       else f"혈관나이 {cvd['heart_age']}세 — 순환기내과 상담 권장")
@@ -284,6 +292,8 @@ def build_member_report(vault_path: Path, relation: str,
         "profile": {"smoking": profile.get("smoking"),
                    "bp_treated": profile.get("bp_treated")},
         "treatment": current_treatment,
+        "findings": findings,
+        "family_history": family_history,
         "risks": risks,
         "risk_tags": risk_tags,
         "family_diseases": family_diseases,
@@ -346,6 +356,94 @@ def checkup_compliance(recs: List[Dict[str, Any]], checkups: List[Dict[str, Any]
     return {"items": items, "rate": rate, "overdue": overdue}
 
 
+def integrated_findings(tag_status: Dict[str, str],
+                        current_treatment: Dict[str, Any],
+                        fh_tags: List[str],
+                        latest: Dict[str, Dict[str, Any]],
+                        today: Optional[dt.date] = None) -> List[Dict[str, Any]]:
+    """가족력 × 현재 치료 × 검진수치를 교차해 본 소견.
+
+    수치만 보면 안 보이고, 치료 기록만 봐도 안 보이는 것들을 찾는다 —
+    "약을 먹는데 수치가 안 잡힘", "가족력이 있고 수치도 나쁜데 치료를 안 함",
+    "약은 먹는데 관련 수치를 안 잰 지 오래됨" 같은 조합.
+    """
+    today = today or dt.date.today()
+    stale_years = (recommend.reference_ranges()
+                   .get("treatment_monitoring", {}).get("stale_years", 1))
+    depts = recommend.reference_ranges()["departments"]
+
+    # 치료중인 질환·복약 대상질환을 수치 태그로 환산
+    treated: Dict[str, List[str]] = {}
+    for c in treatment.active_conditions(current_treatment):
+        tag = recommend.disease_tag(c["name"])
+        if tag:
+            treated.setdefault(tag, []).append(c["name"])
+    med_tags: Dict[str, List[str]] = {}
+    for m in current_treatment.get("medications") or []:
+        tag = recommend.disease_tag(m.get("for") or "")
+        if tag:
+            med_tags.setdefault(tag, []).append(m["name"])
+
+    def _metric_years(tag: str) -> List[int]:
+        return [info["year"] for info in latest.values()
+                if info.get("tag") == tag and info.get("year")]
+
+    out: List[Dict[str, Any]] = []
+    for tag in sorted(set(list(tag_status) + list(treated) + list(med_tags) + fh_tags)):
+        status = tag_status.get(tag, "정상")
+        bad = status in ("주의", "위험")
+        under_care = tag in treated
+        cadence = (depts.get(tag) or {}).get(status, "")
+        dept = (depts.get(tag) or {}).get("dept", "")
+
+        if under_care and bad:
+            out.append({
+                "kind": "치료중_수치미조절", "tag": tag, "severity": 2,
+                "text": f"{'·'.join(treated[tag])} 치료 중인데 {tag} 수치가 아직 {status} 범위입니다",
+                "action": f"{dept} — {cadence}" if cadence else f"{dept} 상담 권장",
+            })
+        elif bad and not under_care:
+            out.append({
+                "kind": "미치료_위험", "tag": tag,
+                "severity": 2 if status == "위험" else 1,
+                "text": (f"{tag} 수치가 {status} 범위인데 현재 치료 기록이 없습니다"
+                         + (" (가족력도 있음)" if tag in fh_tags else "")),
+                "action": f"{dept} — {cadence}" if cadence else f"{dept} 상담 권장",
+            })
+        elif under_care and tag in fh_tags:
+            out.append({
+                "kind": "가족력_치료중", "tag": tag, "severity": 1,
+                "text": f"가족력이 있는 {tag} 관련 질환을 현재 치료 중입니다 — 정기 추적이 중요합니다",
+                "action": f"{dept} 정기 추적" if dept else "정기 추적",
+            })
+        elif under_care:
+            out.append({
+                "kind": "치료중_양호", "tag": tag, "severity": 0,
+                "text": f"{'·'.join(treated[tag])} 치료 중이고 {tag} 수치는 정상 범위입니다 — 잘 관리되고 있습니다",
+                "action": "",
+            })
+
+        # 복약중인데 관련 수치를 안 잰 지 오래됨
+        if tag in med_tags:
+            years = _metric_years(tag)
+            if not years:
+                out.append({
+                    "kind": "복약중_미측정", "tag": tag, "severity": 1,
+                    "text": f"{'·'.join(med_tags[tag])} 복용 중인데 {tag} 관련 수치 기록이 없습니다",
+                    "action": "추적검사 권장",
+                })
+            elif today.year - max(years) > stale_years:
+                out.append({
+                    "kind": "복약중_미측정", "tag": tag, "severity": 1,
+                    "text": (f"{'·'.join(med_tags[tag])} 복용 중인데 {tag} 수치를 "
+                             f"{max(years)}년 이후 재지 않았습니다"),
+                    "action": "추적검사 권장",
+                })
+
+    out.sort(key=lambda f: -f["severity"])
+    return out
+
+
 def family_matrix(members: List[Dict[str, Any]]) -> Dict[str, Any]:
     """가족 전체 위험 매트릭스 — 구성원 × 위험태그 상태 그리드.
 
@@ -375,7 +473,8 @@ def family_matrix(members: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 def build_summary(age: int, risks: List[Dict[str, Any]],
                   departments: List[Dict[str, str]], trends: Dict[str, str],
-                  highlights: List[Dict[str, Any]]) -> Dict[str, Any]:
+                  highlights: List[Dict[str, Any]],
+                  findings: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
     """구조화 소견 — 이번 달 하이라이트 3슬롯 + 기존 문장 + 마스킹 요약.
 
     masked 는 외부(텔레그램 등)로 나가도 되는 건수 요약 — 수치·항목명 없음.
@@ -399,6 +498,16 @@ def build_summary(age: int, risks: List[Dict[str, Any]],
     if departments:
         d = departments[0]
         top_action = f"{d['dept']} 방문 — {d['cadence']}"
+
+    # 통합 소견이 더 구체적이면(치료중인데 조절 안 됨 등) 그쪽을 앞세운다
+    urgent = [f for f in (findings or []) if f["severity"] >= 2]
+    if urgent:
+        f = urgent[0]
+        if top_risk is None:
+            top_risk = {"metric": f["tag"], "status": f["kind"].replace("_", " "),
+                        "action": f["action"] or "진료 상담 권장"}
+        if f["kind"] == "치료중_수치미조절":
+            top_action = f["action"] or top_action
 
     # 기존 종합 소견 문장 (opinion 하위호환)
     parts: List[str] = []
@@ -483,6 +592,31 @@ def write_analysis_note(vault_path: Path, relation: str,
         lines.append(f"- {rec['name']} — {rec['interval_years']}년 주기{fh}"
                      + (f" · {rec['detail']}" if rec.get("detail") else ""))
     lines.append("")
+
+    t = report.get("treatment") or {}
+    if any(t.values()):
+        lines.append("## 현재 진료내역")
+        lines.append("")
+        for c in t.get("conditions") or []:
+            extra = " · ".join(x for x in (c.get("status"), c.get("dept"),
+                                           c.get("since")) if x)
+            lines.append(f"- 치료 **{c['name']}**" + (f" ({extra})" if extra else ""))
+        for m in t.get("medications") or []:
+            extra = " · ".join(x for x in (m.get("dose"), m.get("for")) if x)
+            lines.append(f"- 복약 **{m['name']}**" + (f" ({extra})" if extra else ""))
+        for n in t.get("next_visits") or []:
+            extra = " · ".join(x for x in (n.get("dept"), n.get("purpose")) if x)
+            lines.append(f"- 예약 **{n['date']}**" + (f" ({extra})" if extra else ""))
+        lines.append("")
+
+    if report.get("findings"):
+        lines.append("## 통합 분석 (가족력 · 현재 치료 · 검진수치)")
+        lines.append("")
+        for f in report["findings"]:
+            mark = {2: "⚠️", 1: "🔎"}.get(f["severity"], "👍")
+            lines.append(f"- {mark} {f['text']}"
+                         + (f" → {f['action']}" if f.get("action") else ""))
+        lines.append("")
 
     cvd = report.get("cvd")
     if cvd:

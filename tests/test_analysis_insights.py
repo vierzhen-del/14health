@@ -378,3 +378,99 @@ def test_수치_부족하면_cvd_는_None(tmp_path):
     _vault_mod.add_checkup(v, "나", 2025, {"체중": 75})
     report = _analysis.build_member_report(v, "나", today=_dt.date(2025, 6, 1))
     assert report["cvd"] is None
+
+
+# ---------------------------------------------------------------- 통합 분석
+
+def _tx(conditions=None, medications=None):
+    return {"conditions": conditions or [], "medications": medications or [],
+            "next_visits": []}
+
+
+def test_치료중인데_수치가_안잡히면_최우선():
+    f = analysis.integrated_findings(
+        {"혈압": "위험"}, _tx(conditions=[{"name": "고혈압", "status": "관리중"}]),
+        [], {}, _dt.date(2026, 1, 1))
+    top = f[0]
+    assert top["kind"] == "치료중_수치미조절" and top["severity"] == 2
+    assert "고혈압" in top["text"] and top["action"]
+
+
+def test_수치_나쁜데_치료_기록_없으면_gap():
+    f = analysis.integrated_findings(
+        {"혈당": "위험"}, _tx(), [], {}, _dt.date(2026, 1, 1))
+    assert f[0]["kind"] == "미치료_위험" and f[0]["severity"] == 2
+
+
+def test_가족력도_있으면_문구에_표시():
+    f = analysis.integrated_findings(
+        {"혈압": "주의"}, _tx(), ["혈압"], {}, _dt.date(2026, 1, 1))
+    assert "가족력" in f[0]["text"]
+
+
+def test_가족력_질환을_치료중이면_추적_강조():
+    f = analysis.integrated_findings(
+        {"혈압": "정상"}, _tx(conditions=[{"name": "고혈압"}]), ["혈압"], {},
+        _dt.date(2026, 1, 1))
+    assert any(x["kind"] == "가족력_치료중" for x in f)
+
+
+def test_치료중이고_수치_정상이면_긍정():
+    f = analysis.integrated_findings(
+        {"혈당": "정상"}, _tx(conditions=[{"name": "당뇨"}]), [], {},
+        _dt.date(2026, 1, 1))
+    assert f[0]["kind"] == "치료중_양호" and f[0]["severity"] == 0
+
+
+def test_완치된_질환은_치료중으로_안_본다():
+    f = analysis.integrated_findings(
+        {"혈압": "위험"},
+        _tx(conditions=[{"name": "고혈압", "status": "완치"}]), [], {},
+        _dt.date(2026, 1, 1))
+    assert f[0]["kind"] == "미치료_위험"
+
+
+def test_복약중인데_수치_기록이_없으면_추적검사():
+    f = analysis.integrated_findings(
+        {}, _tx(medications=[{"name": "메트포르민", "for": "당뇨"}]), [], {},
+        _dt.date(2026, 1, 1))
+    assert any(x["kind"] == "복약중_미측정" for x in f)
+
+
+def test_복약중인데_수치가_오래되면_추적검사():
+    latest = {"공복혈당": {"value": 95, "tag": "혈당", "year": 2023}}
+    f = analysis.integrated_findings(
+        {"혈당": "정상"}, _tx(medications=[{"name": "메트포르민", "for": "당뇨"}]),
+        [], latest, _dt.date(2026, 1, 1))
+    assert any(x["kind"] == "복약중_미측정" for x in f)
+
+
+def test_최근에_쟀으면_추적검사_아님():
+    latest = {"공복혈당": {"value": 95, "tag": "혈당", "year": 2026}}
+    f = analysis.integrated_findings(
+        {"혈당": "정상"}, _tx(medications=[{"name": "메트포르민", "for": "당뇨"}]),
+        [], latest, _dt.date(2026, 1, 1))
+    assert not any(x["kind"] == "복약중_미측정" for x in f)
+
+
+def test_심각도_내림차순_정렬():
+    f = analysis.integrated_findings(
+        {"혈압": "위험", "혈당": "정상"},
+        _tx(conditions=[{"name": "당뇨"}],
+            medications=[{"name": "메트포르민", "for": "당뇨"}]),
+        [], {}, _dt.date(2026, 1, 1))
+    assert [x["severity"] for x in f] == sorted(
+        [x["severity"] for x in f], reverse=True)
+
+
+def test_통합_소견이_top_risk로_승격():
+    findings = [{"kind": "치료중_수치미조절", "tag": "혈압", "severity": 2,
+                 "text": "…", "action": "내과 2~4주 내 진료"}]
+    s = analysis.build_summary(50, [], [], {}, [], findings)
+    assert s["top_risk"]["metric"] == "혈압"
+    assert s["top_action"] == "내과 2~4주 내 진료"
+
+
+def test_findings_없이도_build_summary_동작():
+    s = analysis.build_summary(50, [], [], {}, [])
+    assert s["top_risk"] is None

@@ -18,7 +18,7 @@ def _member_payload(report: Dict[str, Any]) -> Dict[str, Any]:
     """build_member_report() 결과에서 대시보드에 필요한 부분만 추림."""
     keys = ["relation", "age", "sex", "birth_year", "stage", "series", "latest",
             "trends", "insights", "highlights", "tag_status", "profile",
-            "treatment", "risks",
+            "treatment", "findings", "family_history", "risks",
             "recommendations", "compliance", "cvd", "lifestyle", "departments",
             "quarters", "opinion", "summary"]
     return {k: report[k] for k in keys}
