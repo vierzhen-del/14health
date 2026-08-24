@@ -25,6 +25,8 @@ CLI는 `pip install -e .` 후 `14health` 명령으로 사용한다.
 - **Opus 5 / Fable 5**(`claude-opus-5`, `claude-fable-5`): 금지령이 아니라 배경지식으로 읽고 스스로 판단.
 - **Sonnet 5 이하 · Haiku · 타사 모델**: 스킬을 **먼저 열어** 절차대로 수행 (Gemini CLI는 `GEMINI.md`).
 - 원본 규칙: second-brain 볼트 `14rae_work/00_지침/2026-07-25_모델별-운영규칙.md` (`/doctor`로 주기 점검)
+- 세션 운영지침 전문: 같은 볼트 `14rae_work/00_지침/2026-08-25_운영지침-v5.9.md` (v5.9 — 태그 트리거·형식
+  강제·turn 기반 모델 전환 삭제, 버전 pin은 설치 전 실측). 위 개인정보 4규칙이 항상 우선한다.
 
 ## 스킬
 
